@@ -218,8 +218,8 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
     return None
 
 
-def generate_signals(analysis: dict) -> list[Signal]:
-    """Generate signals for all coins based on analysis results."""
+def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
+    """Generate signals for all coins. Returns list of (Signal, signal_id) tuples."""
     fired = []
 
     for coin, timeframes in analysis.items():
@@ -259,7 +259,7 @@ def generate_signals(analysis: dict) -> list[Signal]:
                 logger.info("🚀 STRONG BUY signal #%d for %s at $%.2f [%d%% %s]",
                             signal_id, coin, buy.entry_price, buy.strength,
                             _strength_label(buy.strength))
-                fired.append(buy)
+                fired.append((buy, signal_id))
 
         # Check STRONG SELL
         sell = check_strong_sell(coin, ind_15m, ind_1h)
@@ -277,6 +277,6 @@ def generate_signals(analysis: dict) -> list[Signal]:
                 logger.info("🔴 STRONG SELL signal #%d for %s at $%.2f [%d%% %s]",
                             signal_id, coin, sell.entry_price, sell.strength,
                             _strength_label(sell.strength))
-                fired.append(sell)
+                fired.append((sell, signal_id))
 
     return fired

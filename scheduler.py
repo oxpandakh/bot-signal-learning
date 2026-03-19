@@ -28,8 +28,8 @@ async def scan_and_signal():
         analysis = analyzer.analyze_all(market_data)
         fired = signals.generate_signals(analysis)
 
-        for sig in fired:
-            await telegram_bot.send_signal_alert(sig)
+        for sig, signal_id in fired:
+            await telegram_bot.send_signal_alert(sig, signal_id)
 
         logger.info("Scan cycle complete — %d signal(s) fired", len(fired))
 

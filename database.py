@@ -32,7 +32,8 @@ def init_db():
             outcome_time DATETIME,
             exit_price REAL,
             pnl_pct REAL,
-            duration_minutes INTEGER
+            duration_minutes INTEGER,
+            telegram_message_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS coin_stats (
@@ -75,6 +76,16 @@ def insert_signal(coin: str, signal_type: str, entry_price: float,
     conn.commit()
     conn.close()
     return signal_id
+
+
+def set_telegram_message_id(signal_id: int, message_id: int):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE signals SET telegram_message_id=? WHERE id=?",
+        (message_id, signal_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 def has_pending_signal(coin: str, signal_type: str) -> bool:

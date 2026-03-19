@@ -290,26 +290,34 @@ def format_daily_summary() -> str:
 
 # ──────────── Sending helpers ────────────
 
-async def send_message(text: str):
-    """Send a message to the configured Telegram chat."""
+async def send_message(text: str, reply_to_message_id: int = None) -> int | None:
+    """Send a message to the configured Telegram chat. Returns message_id."""
     if not app or not app.bot:
         logger.error("Telegram bot not initialized")
-        return
+        return None
     try:
-        await app.bot.send_message(
+        msg = await app.bot.send_message(
             chat_id=config.TELEGRAM_CHAT_ID,
             text=text,
+            reply_to_message_id=reply_to_message_id,
         )
+        return msg.message_id
     except Exception as e:
         logger.error("Failed to send Telegram message: %s", e)
+        return None
 
 
-async def send_signal_alert(signal: Signal):
-    await send_message(format_signal_alert(signal))
+async def send_signal_alert(signal: Signal, signal_id: int):
+    """Send signal alert and store the Telegram message_id in DB."""
+    message_id = await send_message(format_signal_alert(signal))
+    if message_id and signal_id:
+        database.set_telegram_message_id(signal_id, message_id)
 
 
 async def send_outcome(sig: dict):
-    await send_message(format_outcome(sig))
+    """Send outcome as a reply to the original signal message."""
+    reply_to = sig.get("telegram_message_id")
+    await send_message(format_outcome(sig), reply_to_message_id=reply_to)
 
 
 async def send_daily_summary():

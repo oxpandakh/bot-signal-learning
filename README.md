@@ -115,14 +115,101 @@ The bot will:
 
 ## Deploy on Railway
 
-1. Push repo to GitHub
-2. Create a new project on [Railway](https://railway.app) and connect your repo
-3. Set environment variables in Railway dashboard (same as `.env`)
-4. **Change region** to Europe or Asia if Binance returns HTTP 451 (US blocked)
-5. Add a **Volume** (Settings → Volumes → Mount path: `/data`) for SQLite persistence
-6. Railway auto-detects `Procfile` and runs as a worker
+Railway is a cloud platform that can run your bot 24/7. You need the **Pro plan** ($5/month) to use Volumes for database persistence.
 
-> **Note:** Without a Volume, your database resets on each deploy. The bot auto-saves to `/data/signals.db` when `RAILWAY_VOLUME_MOUNT_PATH` is set.
+### Step 1: Push to GitHub
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/bot-signal-learning.git
+git push -u origin main
+```
+
+> **Important:** Make sure `.env` is in your `.gitignore` so you don't push your bot token to GitHub.
+
+### Step 2: Create Railway Project
+
+1. Go to [railway.app](https://railway.app) and sign in with GitHub
+2. Click **"New Project"**
+3. Select **"Deploy from GitHub Repo"**
+4. Choose your `bot-signal-learning` repository
+5. Railway will auto-detect the `Procfile` and start deploying
+
+### Step 3: Set Environment Variables
+
+1. Click on your **service** (the box in your project canvas)
+2. Go to the **"Variables"** tab
+3. Click **"Raw Editor"** and paste all your variables:
+
+```
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+TAKE_PROFIT_PCT=3.0
+STOP_LOSS_PCT=1.5
+OUTCOME_CHECK_HOURS=4
+SCAN_INTERVAL_MINUTES=15
+BINANCE_BASE_URL=https://api.binance.com
+COINS=BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,DOGEUSDT,DOTUSDT,POLUSDT,SUIUSDT,NEARUSDT,ASTRUSDT,LINKUSDT,TONUSDT,OPUSDT,APTUSDT,ARBUSDT,INJUSDT,TIAUSDT,SEIUSDT,JUPUSDT,PEPEUSDT,FETUSDT,RENDERUSDT,ONDOUSDT,STXUSDT,IMXUSDT,ATOMUSDT,FILUSDT,FTMUSDT,RUNEUSDT,AAVEUSDT,ENAUSDT,WLDUSDT,PENDLEUSDT
+```
+
+4. Click **"Update Variables"** — Railway will redeploy automatically
+
+### Step 4: Change Region (Important!)
+
+Binance blocks US-based servers (HTTP 451 error). You must change the deployment region:
+
+1. Click on your **service**
+2. Go to **"Settings"** tab
+3. Scroll to **"Region"**
+4. Select **"Europe (West)"** or **"Asia (Southeast)"**
+5. Railway will redeploy in the new region
+
+### Step 5: Add a Volume (Pro plan required)
+
+Without a Volume, your SQLite database resets on every deploy. To persist data:
+
+1. Click on your **service**
+2. Go to **"Settings"** tab → scroll to **"Volumes"**
+3. Click **"Add Volume"**
+4. Set Mount Path: `/data`
+5. Click **"Add"**
+
+Railway automatically sets `RAILWAY_VOLUME_MOUNT_PATH=/data`, and the bot saves the database at `/data/signals.db`.
+
+### Step 6: Disable Public Networking
+
+The bot doesn't need a web port — it only polls Telegram:
+
+1. Click on your **service**
+2. Go to **"Settings"** tab → **"Networking"**
+3. Remove any public domain or port if assigned
+
+### Step 7: Verify Deployment
+
+1. Go to the **"Deployments"** tab to see build logs
+2. You should see logs like:
+   ```
+   Database initialized
+   Starting Telegram bot polling...
+   📡 [1/36] Fetching BTCUSDT ...
+   ```
+3. Check your Telegram — you should receive the startup message:
+   ```
+   🤖 Crypto Signal Bot started! Scanning BTCUSDT, ETHUSDT, SOLUSDT... every 15 minutes.
+   ```
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| HTTP 451 from Binance | Change Railway region to Europe or Asia |
+| `Conflict: terminated by other getUpdates` | Stop your local bot — only one instance can run per token |
+| Database resets on deploy | Add a Volume (Step 5) |
+| Bot not starting | Check "Deployments" tab for error logs |
+| No signals firing | Normal — signals only fire when strength >= 40% |
 
 ## Telegram Commands
 
