@@ -1,8 +1,11 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+# Cambodia (Phnom Penh) timezone — UTC+7
+TZ_CAMBODIA = timezone(timedelta(hours=7))
 
 import config
 import database
@@ -42,6 +45,23 @@ def format_price(price: float) -> str:
         return f"${price:.2f}"
     else:
         return f"${price:.4f}"
+
+
+def format_time_now() -> str:
+    """Format current time in Cambodia timezone."""
+    now = datetime.now(TZ_CAMBODIA)
+    return now.strftime("%d %b %Y %H:%M") + " (UTC+7)"
+
+
+def format_time_str(time_str: str) -> str:
+    """Convert a UTC datetime string to Cambodia timezone display."""
+    try:
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        dt = dt.replace(tzinfo=timezone.utc)
+        dt_cam = dt.astimezone(TZ_CAMBODIA)
+        return dt_cam.strftime("%d %b %Y %H:%M") + " (UTC+7)"
+    except (ValueError, TypeError):
+        return str(time_str)
 
 
 def format_duration(minutes: int) -> str:
@@ -93,7 +113,7 @@ def format_signal_alert(sig: Signal) -> str:
     tp_pct = config.TAKE_PROFIT_PCT
     sl_pct = config.STOP_LOSS_PCT
     vol_pct = round((sig.volume_ratio - 1) * 100)
-    now = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+    now = format_time_now()
     strength = sig.strength
     s_label = _strength_label(strength)
     s_bar = _strength_bar(strength)
@@ -125,7 +145,7 @@ def format_outcome(sig: dict) -> str:
     exit_p = format_price(sig["exit_price"])
     pnl = sig["pnl_pct"]
     duration = format_duration(sig["duration_minutes"])
-    resolved_time = sig["outcome_time"]
+    resolved_time = format_time_str(sig["outcome_time"])
 
     # Fetch stats
     coin_stats = database.get_coin_stats()
@@ -207,7 +227,7 @@ def format_daily_summary() -> str:
 
     win_pct = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
 
-    today_str = datetime.utcnow().strftime("%d %b %Y")
+    today_str = datetime.now(TZ_CAMBODIA).strftime("%d %b %Y")
 
     # By signal type
     buy_wins = sum(1 for s in today_sigs if s["signal_type"] == "STRONG_BUY" and s["outcome"] == "WIN")
@@ -410,8 +430,8 @@ async def cmd_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = f"⏳ PENDING SIGNALS ({len(pending)})\n━━━━━━━━━━━━━━━━━━━━\n\n"
     for s in pending:
-        signal_time = datetime.strptime(s["signal_time"], "%Y-%m-%d %H:%M:%S")
-        elapsed = int((datetime.utcnow() - signal_time).total_seconds() / 60)
+        signal_time = datetime.strptime(s["signal_time"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = int((datetime.now(timezone.utc) - signal_time).total_seconds() / 60)
         msg += (
             f"{'🟢' if s['signal_type'] == 'STRONG_BUY' else '🔴'} {s['coin']} — "
             f"{s['signal_type'].replace('_', ' ')}\n"
@@ -443,7 +463,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"   Entry: {format_price(s['entry_price'])} → Exit: {format_price(s['exit_price'])}\n"
             f"   P&L: {'+' if s['pnl_pct'] >= 0 else ''}{s['pnl_pct']}% | "
             f"Duration: {format_duration(s['duration_minutes'])}\n"
-            f"   {s['outcome_time']}\n\n"
+            f"   {format_time_str(s['outcome_time'])}\n\n"
         )
     msg += "⚠️ Not financial advice"
     await update.message.reply_text(msg)
