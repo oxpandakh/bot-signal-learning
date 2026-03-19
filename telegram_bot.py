@@ -71,9 +71,25 @@ def _strength_bar(strength: float) -> str:
     return "█" * filled + "░" * (10 - filled)
 
 
+def _signal_title(signal_type: str, strength: float) -> tuple[str, str]:
+    """Return (emoji, label) based on signal type and strength."""
+    direction = "BUY" if "BUY" in signal_type else "SELL"
+    if strength >= 90:
+        return ("🔥", f"EXTREME {direction}")
+    elif strength >= 80:
+        return ("💪", f"VERY STRONG {direction}")
+    elif strength >= 70:
+        return ("✅", f"STRONG {direction}")
+    elif strength >= 60:
+        return ("⚡", f"MODERATE {direction}")
+    elif strength >= 50:
+        return ("📊", f"FAIR {direction}")
+    else:
+        return ("⚠️", f"WEAK {direction}")
+
+
 def format_signal_alert(sig: Signal) -> str:
-    emoji = "🚀" if sig.signal_type == "STRONG_BUY" else "🔴"
-    label = sig.signal_type.replace("_", " ")
+    emoji, label = _signal_title(sig.signal_type, sig.strength)
     tp_pct = config.TAKE_PROFIT_PCT
     sl_pct = config.STOP_LOSS_PCT
     vol_pct = round((sig.volume_ratio - 1) * 100)
