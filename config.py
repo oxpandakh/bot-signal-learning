@@ -16,7 +16,9 @@ COINS = os.getenv(
     "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,DOGEUSDT,DOTUSDT,MATICUSDT",
 ).split(",")
 
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
+BINANCE_BASE_URL = os.getenv("BINANCE_BASE_URL", "https://api.binance.com")
+BINANCE_KLINES_URL = f"{BINANCE_BASE_URL}/api/v3/klines"
+BINANCE_PRICE_URL = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
 TIMEFRAMES = ["15m", "1h"]
 CANDLE_LIMIT = 100
 

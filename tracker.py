@@ -14,7 +14,7 @@ def get_current_price(symbol: str) -> float | None:
     for attempt in range(1, 4):
         try:
             resp = requests.get(
-                "https://api.binance.com/api/v3/ticker/price",
+                config.BINANCE_PRICE_URL,
                 params={"symbol": symbol},
                 timeout=10,
             )

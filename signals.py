@@ -106,7 +106,39 @@ def generate_signals(analysis: dict) -> list[Signal]:
         ind_1h = timeframes.get("1h")
 
         if not ind_15m or not ind_1h:
+            logger.info("⏭️ %s — missing timeframe data, skipping", coin)
             continue
+
+        # Log signal check summary
+        rsi_15m = ind_15m.get("rsi") or 0
+        rsi_1h = ind_1h.get("rsi") or 0
+        macd = ind_1h.get("macd_cross", "none")
+        ema = ind_1h.get("ema_position", "unknown")
+        vol = ind_1h.get("volume_ratio") or 0
+
+        buy_checks = [
+            ("RSI 15m < 35", rsi_15m < config.RSI_OVERSOLD, f"{rsi_15m:.1f}"),
+            ("RSI 1H < 35", rsi_1h < config.RSI_OVERSOLD, f"{rsi_1h:.1f}"),
+            ("MACD bullish", macd == "bullish", macd),
+            ("Above EMA50", ema == "above_ema50", ema),
+            ("Vol > 1.5x", vol > config.VOLUME_THRESHOLD, f"{vol:.2f}x"),
+        ]
+        sell_checks = [
+            ("RSI 15m > 70", rsi_15m > config.RSI_OVERBOUGHT, f"{rsi_15m:.1f}"),
+            ("RSI 1H > 70", rsi_1h > config.RSI_OVERBOUGHT, f"{rsi_1h:.1f}"),
+            ("MACD bearish", macd == "bearish", macd),
+            ("Below EMA50", ema == "below_ema50", ema),
+            ("Vol > 1.5x", vol > config.VOLUME_THRESHOLD, f"{vol:.2f}x"),
+        ]
+
+        buy_pass = sum(1 for _, ok, _ in buy_checks if ok)
+        sell_pass = sum(1 for _, ok, _ in sell_checks if ok)
+
+        if buy_pass < 5 and sell_pass < 5:
+            buy_detail = " | ".join(f"{'✅' if ok else '❌'}{name}({val})" for name, ok, val in buy_checks)
+            sell_detail = " | ".join(f"{'✅' if ok else '❌'}{name}({val})" for name, ok, val in sell_checks)
+            logger.info("🔍 %s — BUY[%d/5]: %s", coin, buy_pass, buy_detail)
+            logger.info("🔍 %s — SELL[%d/5]: %s", coin, sell_pass, sell_detail)
 
         # Check STRONG BUY
         buy = check_strong_buy(coin, ind_15m, ind_1h)

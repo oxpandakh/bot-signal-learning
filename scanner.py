@@ -51,14 +51,19 @@ def scan_all_coins() -> dict:
     """Fetch candles for all coins and both timeframes. Returns nested dict."""
     results = {}
 
-    for coin in config.COINS:
+    total = len(config.COINS)
+    for i, coin in enumerate(config.COINS, 1):
+        logger.info("📡 [%d/%d] Fetching %s ...", i, total, coin)
         results[coin] = {}
         for tf in config.TIMEFRAMES:
             df = fetch_klines(coin, tf)
             if not df.empty:
                 results[coin][tf] = df
-                logger.info("Fetched %d candles for %s %s", len(df), coin, tf)
+                last_close = df["close"].iloc[-1]
+                logger.info("  ✓ %s %s — %d candles, last close: $%.4f", coin, tf, len(df), last_close)
             else:
-                logger.warning("No data for %s %s — skipping", coin, tf)
+                logger.warning("  ✗ %s %s — no data, skipping", coin, tf)
 
+    logger.info("📡 Scan complete: %d/%d coins fetched successfully",
+                sum(1 for c in results if results[c]), total)
     return results

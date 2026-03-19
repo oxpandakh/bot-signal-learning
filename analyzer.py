@@ -104,12 +104,14 @@ def analyze_all(market_data: dict) -> dict:
             indicators = compute_indicators(df)
             if indicators:
                 analysis[coin][tf] = indicators
-                logger.info("%s %s — RSI: %.1f, MACD: %s, Vol: %.2fx",
+                logger.info("📊 %s %s — RSI: %.1f | MACD: %s | EMA: %s | Vol: %.2fx | Price: $%.4f",
                             coin, tf,
                             indicators.get("rsi") or 0,
                             indicators.get("macd_cross", "n/a"),
-                            indicators.get("volume_ratio") or 0)
+                            indicators.get("ema_position", "n/a"),
+                            indicators.get("volume_ratio") or 0,
+                            indicators.get("price") or 0)
             else:
-                logger.warning("Insufficient data to compute indicators for %s %s", coin, tf)
+                logger.warning("⚠️ %s %s — insufficient data for indicators", coin, tf)
 
     return analysis
