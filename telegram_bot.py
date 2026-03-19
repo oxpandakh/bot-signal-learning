@@ -43,8 +43,12 @@ def format_price(price: float) -> str:
         return f"${price:,.2f}"
     elif price >= 1:
         return f"${price:.2f}"
-    else:
+    elif price >= 0.01:
         return f"${price:.4f}"
+    elif price >= 0.0001:
+        return f"${price:.6f}"
+    else:
+        return f"${price:.8f}"
 
 
 def format_time_now() -> str:
