@@ -7,6 +7,8 @@ import database
 
 logger = logging.getLogger(__name__)
 
+MIN_SIGNAL_STRENGTH = 60  # Minimum % to fire a signal
+
 
 @dataclass
 class Signal:
@@ -20,10 +22,130 @@ class Signal:
     macd_cross: str
     volume_ratio: float
     ema_position: str
+    strength: float  # Signal strength percentage
+
+
+def _calc_buy_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
+                       ema_position: str, volume_ratio: float) -> float:
+    """Calculate BUY signal strength from 0-100%.
+
+    Scoring (total 100):
+      RSI 15m (20pts): <30 = 20, <35 = 15, <40 = 10, <45 = 5
+      RSI 1H  (20pts): <30 = 20, <35 = 15, <40 = 10, <45 = 5
+      MACD    (25pts): bullish crossover = 25
+      EMA     (15pts): above EMA50 = 15
+      Volume  (20pts): >2.0x = 20, >1.5x = 15, >1.2x = 10, >1.0x = 5
+    """
+    score = 0
+
+    # RSI 15m (20pts)
+    if rsi_15m < 30:
+        score += 20
+    elif rsi_15m < 35:
+        score += 15
+    elif rsi_15m < 40:
+        score += 10
+    elif rsi_15m < 45:
+        score += 5
+
+    # RSI 1H (20pts)
+    if rsi_1h < 30:
+        score += 20
+    elif rsi_1h < 35:
+        score += 15
+    elif rsi_1h < 40:
+        score += 10
+    elif rsi_1h < 45:
+        score += 5
+
+    # MACD (25pts)
+    if macd_cross == "bullish":
+        score += 25
+
+    # EMA position (15pts)
+    if ema_position == "above_ema50":
+        score += 15
+
+    # Volume (20pts)
+    if volume_ratio > 2.0:
+        score += 20
+    elif volume_ratio > 1.5:
+        score += 15
+    elif volume_ratio > 1.2:
+        score += 10
+    elif volume_ratio > 1.0:
+        score += 5
+
+    return score
+
+
+def _calc_sell_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
+                        ema_position: str, volume_ratio: float) -> float:
+    """Calculate SELL signal strength from 0-100%.
+
+    Scoring (total 100):
+      RSI 15m (20pts): >75 = 20, >70 = 15, >65 = 10, >60 = 5
+      RSI 1H  (20pts): >75 = 20, >70 = 15, >65 = 10, >60 = 5
+      MACD    (25pts): bearish crossover = 25
+      EMA     (15pts): below EMA50 = 15
+      Volume  (20pts): >2.0x = 20, >1.5x = 15, >1.2x = 10, >1.0x = 5
+    """
+    score = 0
+
+    # RSI 15m (20pts)
+    if rsi_15m > 75:
+        score += 20
+    elif rsi_15m > 70:
+        score += 15
+    elif rsi_15m > 65:
+        score += 10
+    elif rsi_15m > 60:
+        score += 5
+
+    # RSI 1H (20pts)
+    if rsi_1h > 75:
+        score += 20
+    elif rsi_1h > 70:
+        score += 15
+    elif rsi_1h > 65:
+        score += 10
+    elif rsi_1h > 60:
+        score += 5
+
+    # MACD (25pts)
+    if macd_cross == "bearish":
+        score += 25
+
+    # EMA position (15pts)
+    if ema_position == "below_ema50":
+        score += 15
+
+    # Volume (20pts)
+    if volume_ratio > 2.0:
+        score += 20
+    elif volume_ratio > 1.5:
+        score += 15
+    elif volume_ratio > 1.2:
+        score += 10
+    elif volume_ratio > 1.0:
+        score += 5
+
+    return score
+
+
+def _strength_label(strength: float) -> str:
+    if strength >= 90:
+        return "🔥 EXTREME"
+    elif strength >= 80:
+        return "💪 VERY STRONG"
+    elif strength >= 70:
+        return "✅ STRONG"
+    else:
+        return "⚡ MODERATE"
 
 
 def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
-    """Check if STRONG BUY conditions are met (all must be true)."""
+    """Check if BUY signal strength >= 60%."""
     rsi_15m = ind_15m.get("rsi")
     rsi_1h = ind_1h.get("rsi")
     macd_cross = ind_1h.get("macd_cross")
@@ -34,13 +156,9 @@ def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    # All conditions must be true
-    if (rsi_15m < config.RSI_OVERSOLD
-            and rsi_1h < config.RSI_OVERSOLD
-            and macd_cross == "bullish"
-            and ema_position == "above_ema50"
-            and volume_ratio > config.VOLUME_THRESHOLD):
+    strength = _calc_buy_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
 
+    if strength >= MIN_SIGNAL_STRENGTH:
         tp = round(price * (1 + config.TAKE_PROFIT_PCT / 100), 2)
         sl = round(price * (1 - config.STOP_LOSS_PCT / 100), 2)
 
@@ -55,13 +173,14 @@ def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]
             macd_cross="Bullish crossover",
             volume_ratio=volume_ratio,
             ema_position=ema_position,
+            strength=strength,
         )
 
     return None
 
 
 def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
-    """Check if STRONG SELL conditions are met (all must be true)."""
+    """Check if SELL signal strength >= 60%."""
     rsi_15m = ind_15m.get("rsi")
     rsi_1h = ind_1h.get("rsi")
     macd_cross = ind_1h.get("macd_cross")
@@ -72,12 +191,9 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    if (rsi_15m > config.RSI_OVERBOUGHT
-            and rsi_1h > config.RSI_OVERBOUGHT
-            and macd_cross == "bearish"
-            and ema_position == "below_ema50"
-            and volume_ratio > config.VOLUME_THRESHOLD):
+    strength = _calc_sell_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
 
+    if strength >= MIN_SIGNAL_STRENGTH:
         tp = round(price * (1 - config.TAKE_PROFIT_PCT / 100), 2)
         sl = round(price * (1 + config.STOP_LOSS_PCT / 100), 2)
 
@@ -92,6 +208,7 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
             macd_cross="Bearish crossover",
             volume_ratio=volume_ratio,
             ema_position=ema_position,
+            strength=strength,
         )
 
     return None
@@ -116,29 +233,11 @@ def generate_signals(analysis: dict) -> list[Signal]:
         ema = ind_1h.get("ema_position", "unknown")
         vol = ind_1h.get("volume_ratio") or 0
 
-        buy_checks = [
-            ("RSI 15m < 35", rsi_15m < config.RSI_OVERSOLD, f"{rsi_15m:.1f}"),
-            ("RSI 1H < 35", rsi_1h < config.RSI_OVERSOLD, f"{rsi_1h:.1f}"),
-            ("MACD bullish", macd == "bullish", macd),
-            ("Above EMA50", ema == "above_ema50", ema),
-            ("Vol > 1.5x", vol > config.VOLUME_THRESHOLD, f"{vol:.2f}x"),
-        ]
-        sell_checks = [
-            ("RSI 15m > 70", rsi_15m > config.RSI_OVERBOUGHT, f"{rsi_15m:.1f}"),
-            ("RSI 1H > 70", rsi_1h > config.RSI_OVERBOUGHT, f"{rsi_1h:.1f}"),
-            ("MACD bearish", macd == "bearish", macd),
-            ("Below EMA50", ema == "below_ema50", ema),
-            ("Vol > 1.5x", vol > config.VOLUME_THRESHOLD, f"{vol:.2f}x"),
-        ]
+        buy_str = _calc_buy_strength(rsi_15m, rsi_1h, macd, ema, vol)
+        sell_str = _calc_sell_strength(rsi_15m, rsi_1h, macd, ema, vol)
 
-        buy_pass = sum(1 for _, ok, _ in buy_checks if ok)
-        sell_pass = sum(1 for _, ok, _ in sell_checks if ok)
-
-        if buy_pass < 5 and sell_pass < 5:
-            buy_detail = " | ".join(f"{'✅' if ok else '❌'}{name}({val})" for name, ok, val in buy_checks)
-            sell_detail = " | ".join(f"{'✅' if ok else '❌'}{name}({val})" for name, ok, val in sell_checks)
-            logger.info("🔍 %s — BUY[%d/5]: %s", coin, buy_pass, buy_detail)
-            logger.info("🔍 %s — SELL[%d/5]: %s", coin, sell_pass, sell_detail)
+        logger.info("🔍 %s — BUY: %d%% | SELL: %d%% | RSI(15m:%.1f/1H:%.1f) MACD:%s EMA:%s Vol:%.2fx",
+                     coin, buy_str, sell_str, rsi_15m, rsi_1h, macd, ema, vol)
 
         # Check STRONG BUY
         buy = check_strong_buy(coin, ind_15m, ind_1h)
@@ -153,8 +252,9 @@ def generate_signals(analysis: dict) -> list[Signal]:
                     rsi_1h=buy.rsi_1h, macd_cross=buy.macd_cross,
                     volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
                 )
-                logger.info("🚀 STRONG BUY signal #%d for %s at $%.2f",
-                            signal_id, coin, buy.entry_price)
+                logger.info("🚀 STRONG BUY signal #%d for %s at $%.2f [%d%% %s]",
+                            signal_id, coin, buy.entry_price, buy.strength,
+                            _strength_label(buy.strength))
                 fired.append(buy)
 
         # Check STRONG SELL
@@ -170,8 +270,9 @@ def generate_signals(analysis: dict) -> list[Signal]:
                     rsi_1h=sell.rsi_1h, macd_cross=sell.macd_cross,
                     volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
                 )
-                logger.info("🔴 STRONG SELL signal #%d for %s at $%.2f",
-                            signal_id, coin, sell.entry_price)
+                logger.info("🔴 STRONG SELL signal #%d for %s at $%.2f [%d%% %s]",
+                            signal_id, coin, sell.entry_price, sell.strength,
+                            _strength_label(sell.strength))
                 fired.append(sell)
 
     return fired

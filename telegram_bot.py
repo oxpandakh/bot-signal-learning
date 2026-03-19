@@ -51,6 +51,22 @@ def format_duration(minutes: int) -> str:
     return f"{m}m"
 
 
+def _strength_label(strength: float) -> str:
+    if strength >= 90:
+        return "🔥 EXTREME"
+    elif strength >= 80:
+        return "💪 VERY STRONG"
+    elif strength >= 70:
+        return "✅ STRONG"
+    else:
+        return "⚡ MODERATE"
+
+
+def _strength_bar(strength: float) -> str:
+    filled = round(strength / 10)
+    return "█" * filled + "░" * (10 - filled)
+
+
 def format_signal_alert(sig: Signal) -> str:
     emoji = "🚀" if sig.signal_type == "STRONG_BUY" else "🔴"
     label = sig.signal_type.replace("_", " ")
@@ -58,10 +74,15 @@ def format_signal_alert(sig: Signal) -> str:
     sl_pct = config.STOP_LOSS_PCT
     vol_pct = round((sig.volume_ratio - 1) * 100)
     now = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+    strength = sig.strength
+    s_label = _strength_label(strength)
+    s_bar = _strength_bar(strength)
 
     return (
         f"{emoji} {label} — {sig.coin}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📶 Strength   : {strength:.0f}% {s_label}\n"
+        f"   {s_bar}\n"
         f"💰 Entry Price : {format_price(sig.entry_price)}\n"
         f"🎯 Take Profit : {format_price(sig.take_profit)}  (+{tp_pct}%)\n"
         f"🛑 Stop Loss   : {format_price(sig.stop_loss)}  (-{sl_pct}%)\n"
