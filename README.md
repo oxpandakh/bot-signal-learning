@@ -281,6 +281,102 @@ Outcomes are checked every 15 minutes. When a signal resolves, a result message 
 └── signals.db        # SQLite database (created on first run)
 ```
 
+## Built With — Vibe Coding with Claude Code
+
+This entire project was **vibe coded** using [Claude Code](https://claude.com/claude-code) — Anthropic's AI coding assistant in the terminal. No boilerplate was written manually.
+
+### What is Vibe Coding?
+
+Vibe coding is a development style where you describe **what** you want in natural language, and an AI assistant writes the code for you. You guide the direction, review the output, and iterate — like pair programming with AI.
+
+### How This Project Was Built
+
+1. **Single prompt** — Started with a detailed specification describing all features, signal logic, database schema, and Telegram message formats
+2. **Iterative refinement** — Each feature was refined through conversation:
+   - "add more coins" → added 20 new trading pairs
+   - "signal send with Strong percent start from 60%" → built the strength scoring system
+   - "now update send with 40%" → lowered threshold
+   - "SIGNAL RESOLVED can send with reply on signal message?" → added Telegram reply threading
+   - "remove proxy" → cleaned up unused code
+3. **Deploy assistance** — Railway deployment was configured through conversation, including region selection, volume setup, and troubleshooting HTTP 451 errors
+
+### Development Tools
+
+- [Claude Code](https://claude.com/claude-code) — AI coding assistant
+- [VS Code](https://code.visualstudio.com/) — IDE
+- [Railway](https://railway.app/) — Cloud hosting
+- [GitHub](https://github.com/) — Version control
+
+### Development Timeline
+
+This project went from zero to deployed in a **single conversation session** with Claude Code — including:
+- Full project scaffolding (12 files)
+- Technical indicator calculations
+- Signal strength scoring algorithm
+- Telegram bot with 7 commands
+- Win rate tracking with auto-resolution
+- Railway deployment configuration
+- Iterative feature additions and bug fixes
+
+### Reproduce This Yourself
+
+1. Install [Claude Code](https://claude.com/claude-code)
+2. Open a terminal in an empty folder
+3. Paste the project specification as your first prompt
+4. Iterate: test, find issues, describe fixes in natural language
+5. Deploy with: "deploy this on Railway"
+
+> **Tip:** The more detailed your initial specification, the better the first output. Include database schemas, message formats, and edge cases upfront.
+
+### Example Prompts Used
+
+**Prompt 1 — Initial build:**
+```
+Build a crypto signal bot. Scan Binance coins every 15 minutes,
+use RSI + MACD + EMA + Volume to find buy/sell signals,
+send alerts to Telegram, track win rate with TP/SL,
+store everything in SQLite.
+```
+
+**Prompt 2 — Add signal strength:**
+```
+Add a strength percentage to signals. Score each indicator
+(RSI, MACD, EMA, Volume) and show a % from 0-100.
+Only send signals when strength >= 60%.
+Show a progress bar and label (EXTREME, VERY STRONG, STRONG, MODERATE) in the Telegram message.
+```
+
+**Prompt 3 — Lower threshold and add more levels:**
+```
+Lower the minimum signal strength to 40%.
+Add new labels: FAIR for 50-59% and WEAK for 40-49%.
+Make the Telegram title match the strength level instead of always saying STRONG BUY.
+```
+
+**Prompt 4 — Fix title mismatch:**
+```
+🚀 STRONG BUY — FETUSDT
+📶 Strength : 50% 📊 FAIR
+title why write STRONG BUY?
+```
+
+**Prompt 5 — Add reply threading:**
+```
+SIGNAL RESOLVED can send with reply on signal message?
+```
+
+**Prompt 6 — Add coins:**
+```
+add more 20 coin
+```
+
+**Prompt 7 — Fix errors:**
+```
+<paste the error log>
+```
+
+> **Key takeaway:** You don't need perfect English or long prompts. Short, direct instructions work. Claude Code understands context from the conversation and codebase.
+
 ## Data Source
 
 All market data comes from the [Binance public REST API](https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data) — no API key required. Uses 250 candles per request to support EMA 200 calculation.
