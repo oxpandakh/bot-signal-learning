@@ -48,18 +48,19 @@ def format_price(price: float) -> str:
 
 
 def format_time_now() -> str:
-    """Format current time in Cambodia timezone."""
-    now = datetime.now(TZ_CAMBODIA)
-    return now.strftime("%d %b %Y %H:%M") + " (UTC+7)"
+    """Format current time in both UTC and Cambodia timezone."""
+    utc_now = datetime.now(timezone.utc)
+    cam_now = utc_now.astimezone(TZ_CAMBODIA)
+    return f"{utc_now.strftime('%d %b %Y %H:%M')} UTC | {cam_now.strftime('%H:%M')} UTC+7"
 
 
 def format_time_str(time_str: str) -> str:
-    """Convert a UTC datetime string to Cambodia timezone display."""
+    """Convert a UTC datetime string to both UTC and Cambodia timezone display."""
     try:
         dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
         dt = dt.replace(tzinfo=timezone.utc)
         dt_cam = dt.astimezone(TZ_CAMBODIA)
-        return dt_cam.strftime("%d %b %Y %H:%M") + " (UTC+7)"
+        return f"{dt.strftime('%d %b %Y %H:%M')} UTC | {dt_cam.strftime('%H:%M')} UTC+7"
     except (ValueError, TypeError):
         return str(time_str)
 
