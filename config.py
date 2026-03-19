@@ -1,0 +1,35 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+TAKE_PROFIT_PCT = float(os.getenv("TAKE_PROFIT_PCT", "3.0"))
+STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "1.5"))
+OUTCOME_CHECK_HOURS = int(os.getenv("OUTCOME_CHECK_HOURS", "4"))
+SCAN_INTERVAL_MINUTES = int(os.getenv("SCAN_INTERVAL_MINUTES", "15"))
+
+COINS = os.getenv(
+    "COINS",
+    "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,DOGEUSDT,DOTUSDT,MATICUSDT",
+).split(",")
+
+BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
+TIMEFRAMES = ["15m", "1h"]
+CANDLE_LIMIT = 100
+
+RSI_PERIOD = 14
+MACD_FAST = 12
+MACD_SLOW = 26
+MACD_SIGNAL = 9
+BB_PERIOD = 20
+EMA_PERIODS = [20, 50, 200]
+VOLUME_AVG_PERIOD = 20
+
+RSI_OVERSOLD = 35
+RSI_OVERBOUGHT = 70
+VOLUME_THRESHOLD = 1.5
+
+DB_PATH = "signals.db"

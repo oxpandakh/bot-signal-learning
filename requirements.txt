@@ -1,0 +1,7 @@
+requests==2.31.0
+pandas==2.2.0
+ta
+python-telegram-bot>=21.0
+APScheduler==3.10.4
+python-dotenv==1.0.0
+colorlog==6.8.2
