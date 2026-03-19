@@ -58,8 +58,12 @@ def _strength_label(strength: float) -> str:
         return "💪 VERY STRONG"
     elif strength >= 70:
         return "✅ STRONG"
-    else:
+    elif strength >= 60:
         return "⚡ MODERATE"
+    elif strength >= 50:
+        return "📊 FAIR"
+    else:
+        return "⚠️ WEAK"
 
 
 def _strength_bar(strength: float) -> str:

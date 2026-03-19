@@ -7,7 +7,7 @@ import database
 
 logger = logging.getLogger(__name__)
 
-MIN_SIGNAL_STRENGTH = 60  # Minimum % to fire a signal
+MIN_SIGNAL_STRENGTH = 40  # Minimum % to fire a signal
 
 
 @dataclass
@@ -140,8 +140,12 @@ def _strength_label(strength: float) -> str:
         return "💪 VERY STRONG"
     elif strength >= 70:
         return "✅ STRONG"
-    else:
+    elif strength >= 60:
         return "⚡ MODERATE"
+    elif strength >= 50:
+        return "📊 FAIR"
+    else:
+        return "⚠️ WEAK"
 
 
 def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
