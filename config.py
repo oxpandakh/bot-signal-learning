@@ -32,4 +32,5 @@ RSI_OVERSOLD = 35
 RSI_OVERBOUGHT = 70
 VOLUME_THRESHOLD = 1.5
 
-DB_PATH = "signals.db"
+RAILWAY_VOLUME = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "")
+DB_PATH = os.path.join(RAILWAY_VOLUME, "signals.db") if RAILWAY_VOLUME else "signals.db"
