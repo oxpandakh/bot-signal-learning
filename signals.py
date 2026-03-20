@@ -23,6 +23,7 @@ class Signal:
     volume_ratio: float
     ema_position: str
     strength: float  # Signal strength percentage
+    signal_time: str = ""  # UTC datetime string set after DB insert
 
 
 def _calc_buy_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
@@ -256,6 +257,9 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     rsi_1h=buy.rsi_1h, macd_cross=buy.macd_cross,
                     volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
                 )
+                sig_row = database.get_signal_by_id(signal_id)
+                if sig_row:
+                    buy.signal_time = sig_row["signal_time"]
                 logger.info("🚀 STRONG BUY signal #%d for %s at $%.2f [%d%% %s]",
                             signal_id, coin, buy.entry_price, buy.strength,
                             _strength_label(buy.strength))
@@ -274,6 +278,9 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     rsi_1h=sell.rsi_1h, macd_cross=sell.macd_cross,
                     volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
                 )
+                sig_row = database.get_signal_by_id(signal_id)
+                if sig_row:
+                    sell.signal_time = sig_row["signal_time"]
                 logger.info("🔴 STRONG SELL signal #%d for %s at $%.2f [%d%% %s]",
                             signal_id, coin, sell.entry_price, sell.strength,
                             _strength_label(sell.strength))

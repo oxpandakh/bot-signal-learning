@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
 
-from telegram import Update
+from telegram import Update, ReplyParameters
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 # Cambodia (Phnom Penh) timezone — UTC+7
@@ -118,7 +118,6 @@ def format_signal_alert(sig: Signal) -> str:
     tp_pct = config.TAKE_PROFIT_PCT
     sl_pct = config.STOP_LOSS_PCT
     vol_pct = round((sig.volume_ratio - 1) * 100)
-    now = format_time_now()
     strength = sig.strength
     s_label = _strength_label(strength)
     s_bar = _strength_bar(strength)
@@ -136,7 +135,6 @@ def format_signal_alert(sig: Signal) -> str:
         f"📈 MACD        : {sig.macd_cross}\n"
         f"📦 Volume      : +{vol_pct}% above avg\n"
         f"⏱ Confluence  : 15m + 1H\n"
-        f"🕐 Time        : {now}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"⚠️ Not financial advice"
     )
@@ -180,7 +178,6 @@ def format_outcome(sig: dict) -> str:
             f"📍 Exit Price : {exit_p}\n"
             f"💵 P&L        : +{pnl}%\n"
             f"⏳ Duration   : {duration}\n"
-            f"🕐 Resolved   : {resolved_time}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"{coin_line}\n"
             f"{sig_line}\n"
@@ -199,7 +196,6 @@ def format_outcome(sig: dict) -> str:
             f"📍 Exit Price : {exit_p}\n"
             f"💵 P&L        : {pnl}%\n"
             f"⏳ Duration   : {duration}\n"
-            f"🕐 Resolved   : {resolved_time}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"{coin_line}\n"
             f"{sig_line}\n"
@@ -216,7 +212,6 @@ def format_outcome(sig: dict) -> str:
             f"📍 Price at expiry : {exit_p}\n"
             f"💵 Unrealized P&L  : {'+' if pnl >= 0 else ''}{pnl}%\n"
             f"⏳ Checked after   : {config.OUTCOME_CHECK_HOURS}h (timeout)\n"
-            f"🕐 Expired         : {resolved_time}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ Not financial advice"
         )
@@ -321,11 +316,10 @@ async def send_message(text: str, reply_to_message_id: int = None) -> int | None
         logger.error("Telegram bot not initialized")
         return None
     try:
-        msg = await app.bot.send_message(
-            chat_id=config.TELEGRAM_CHAT_ID,
-            text=text,
-            reply_to_message_id=reply_to_message_id,
-        )
+        kwargs = {"chat_id": config.TELEGRAM_CHAT_ID, "text": text}
+        if reply_to_message_id:
+            kwargs["reply_parameters"] = ReplyParameters(message_id=reply_to_message_id)
+        msg = await app.bot.send_message(**kwargs)
         return msg.message_id
     except Exception as e:
         logger.error("Failed to send Telegram message: %s", e)
