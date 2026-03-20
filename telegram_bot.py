@@ -121,21 +121,26 @@ def format_signal_alert(sig: Signal) -> str:
     strength = sig.strength
     s_label = _strength_label(strength)
     s_bar = _strength_bar(strength)
+    is_buy = "BUY" in sig.signal_type
+    tp_arrow = "↑" if is_buy else "↓"
+    sl_arrow = "↓" if is_buy else "↑"
 
     return (
         f"{emoji} {label} — {sig.coin}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📶 Strength   : {strength:.0f}% {s_label}\n"
-        f"   {s_bar}\n"
-        f"💰 Entry Price : {format_price(sig.entry_price)}\n"
-        f"🎯 Take Profit : {format_price(sig.take_profit)}  (+{tp_pct}%)\n"
-        f"🛑 Stop Loss   : {format_price(sig.stop_loss)}  (-{sl_pct}%)\n"
-        f"📊 RSI 15m     : {sig.rsi_15m:.1f}\n"
-        f"📊 RSI 1H      : {sig.rsi_1h:.1f}\n"
-        f"📈 MACD        : {sig.macd_cross}\n"
-        f"📦 Volume      : +{vol_pct}% above avg\n"
-        f"⏱ Confluence  : 15m + 1H\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
+        f"📶  {strength:.0f}%  {s_bar}  {s_label}\n"
+        f"\n"
+        f"💰 Entry   {format_price(sig.entry_price)}\n"
+        f"🎯 Target  {format_price(sig.take_profit)}   {tp_arrow} {tp_pct}%\n"
+        f"🛑 Stop    {format_price(sig.stop_loss)}   {sl_arrow} {sl_pct}%\n"
+        f"\n"
+        f"📊 RSI   15m {sig.rsi_15m:.1f}  ·  1H {sig.rsi_1h:.1f}\n"
+        f"📈 MACD  {sig.macd_cross}\n"
+        f"📦 Vol   +{vol_pct}% above avg\n"
+        f"⏱  15m + 1H confluence\n"
+        f"\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⚠️ Not financial advice"
     )
 
@@ -147,8 +152,8 @@ def format_outcome(sig: dict) -> str:
     entry = format_price(sig["entry_price"])
     exit_p = format_price(sig["exit_price"])
     pnl = sig["pnl_pct"]
+    pnl_str = f"+{pnl}%" if pnl >= 0 else f"{pnl}%"
     duration = format_duration(sig["duration_minutes"])
-    resolved_time = format_time_str(sig["outcome_time"])
 
     # Fetch stats
     coin_stats = database.get_coin_stats()
@@ -157,62 +162,54 @@ def format_outcome(sig: dict) -> str:
     coin_stat = next((c for c in coin_stats if c["coin"] == coin), None)
     sig_stat = next((s for s in signal_stats if s["signal_type"] == sig["signal_type"]), None)
 
-    coin_line = ""
-    if coin_stat:
-        coin_line = f"📊 {coin} win rate  : {coin_stat['win_rate']:.1f}% ({coin_stat['wins']}W / {coin_stat['losses']}L)"
-
-    sig_line = ""
-    if sig_stat:
-        sig_line = f"📊 {sig['signal_type'].replace('_', ' ')} rate   : {sig_stat['win_rate']:.1f}% ({sig_stat['wins']}W / {sig_stat['losses']}L)"
+    stats_block = ""
+    if coin_stat or sig_stat:
+        stats_block = "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        if coin_stat:
+            stats_block += f"📊 {coin}   {coin_stat['wins']}W / {coin_stat['losses']}L → {coin_stat['win_rate']:.1f}%\n"
+        if sig_stat:
+            stats_block += f"📊 {signal_type}   {sig_stat['wins']}W / {sig_stat['losses']}L → {sig_stat['win_rate']:.1f}%\n"
 
     if outcome == "WIN":
-        header = "✅ SIGNAL RESOLVED — WIN"
-        tp_line = f"🎯 Take Profit: {format_price(sig['take_profit'])}"
         return (
-            f"{header}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 Coin       : {coin}\n"
-            f"📣 Signal     : {signal_type}\n"
-            f"💰 Entry      : {entry}\n"
-            f"{tp_line}\n"
-            f"📍 Exit Price : {exit_p}\n"
-            f"💵 P&L        : +{pnl}%\n"
-            f"⏳ Duration   : {duration}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{coin_line}\n"
-            f"{sig_line}\n"
+            f"✅ WIN — {coin}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"\n"
+            f"📣 {signal_type}\n"
+            f"💰 Entry   {entry}  →  📍 {exit_p}\n"
+            f"🎯 Target  {format_price(sig['take_profit'])}\n"
+            f"\n"
+            f"💵 P&L  {pnl_str}   ·   ⏳ {duration}\n"
+            f"\n"
+            f"{stats_block}"
             f"⚠️ Not financial advice"
         )
     elif outcome == "LOSS":
-        header = "❌ SIGNAL RESOLVED — LOSS"
-        sl_line = f"🛑 Stop Loss  : {format_price(sig['stop_loss'])}"
         return (
-            f"{header}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 Coin       : {coin}\n"
-            f"📣 Signal     : {signal_type}\n"
-            f"💰 Entry      : {entry}\n"
-            f"{sl_line}\n"
-            f"📍 Exit Price : {exit_p}\n"
-            f"💵 P&L        : {pnl}%\n"
-            f"⏳ Duration   : {duration}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{coin_line}\n"
-            f"{sig_line}\n"
+            f"❌ LOSS — {coin}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"\n"
+            f"📣 {signal_type}\n"
+            f"💰 Entry   {entry}  →  📍 {exit_p}\n"
+            f"🛑 Stop    {format_price(sig['stop_loss'])}\n"
+            f"\n"
+            f"💵 P&L  {pnl_str}   ·   ⏳ {duration}\n"
+            f"\n"
+            f"{stats_block}"
             f"⚠️ Not financial advice"
         )
     else:  # EXPIRED
-        header = "⏳ SIGNAL EXPIRED — NO RESULT"
         return (
-            f"{header}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 Coin            : {coin}\n"
-            f"📣 Signal          : {signal_type}\n"
-            f"💰 Entry           : {entry}\n"
-            f"📍 Price at expiry : {exit_p}\n"
-            f"💵 Unrealized P&L  : {'+' if pnl >= 0 else ''}{pnl}%\n"
-            f"⏳ Checked after   : {config.OUTCOME_CHECK_HOURS}h (timeout)\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ EXPIRED — {coin}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"\n"
+            f"📣 {signal_type}\n"
+            f"💰 Entry      {entry}\n"
+            f"📍 At expiry  {exit_p}\n"
+            f"\n"
+            f"💵 Unrealized  {pnl_str}   ·   ⏳ {config.OUTCOME_CHECK_HOURS}h timeout\n"
+            f"\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ Not financial advice"
         )
 
@@ -318,11 +315,14 @@ async def send_message(text: str, reply_to_message_id: int = None) -> int | None
     try:
         kwargs = {"chat_id": config.TELEGRAM_CHAT_ID, "text": text}
         if reply_to_message_id:
-            kwargs["reply_parameters"] = ReplyParameters(message_id=reply_to_message_id)
+            kwargs["reply_parameters"] = ReplyParameters(
+                message_id=reply_to_message_id,
+                chat_id=config.TELEGRAM_CHAT_ID,
+            )
         msg = await app.bot.send_message(**kwargs)
         return msg.message_id
     except Exception as e:
-        logger.error("Failed to send Telegram message: %s", e)
+        logger.error("Failed to send Telegram message: %s", e, exc_info=True)
         return None
 
 
@@ -331,11 +331,16 @@ async def send_signal_alert(signal: Signal, signal_id: int):
     message_id = await send_message(format_signal_alert(signal))
     if message_id and signal_id:
         database.set_telegram_message_id(signal_id, message_id)
+        logger.info("Stored telegram_message_id=%d for signal #%d", message_id, signal_id)
+    else:
+        logger.warning("Failed to store telegram_message_id for signal #%d", signal_id)
 
 
 async def send_outcome(sig: dict):
     """Send outcome as a reply to the original signal message."""
     reply_to = sig.get("telegram_message_id")
+    if not reply_to:
+        logger.warning("No telegram_message_id for signal #%d — sending without reply", sig.get("id"))
     await send_message(format_outcome(sig), reply_to_message_id=reply_to)
 
 

@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 MIN_SIGNAL_STRENGTH = 40  # Minimum % to fire a signal
 
 
+def _round_price(price: float) -> float:
+    if price >= 1000:
+        return round(price, 2)
+    elif price >= 1:
+        return round(price, 4)
+    elif price >= 0.01:
+        return round(price, 6)
+    elif price >= 0.0001:
+        return round(price, 8)
+    else:
+        return round(price, 10)
+
+
 @dataclass
 class Signal:
     coin: str
@@ -164,8 +177,8 @@ def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]
     strength = _calc_buy_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
 
     if strength >= MIN_SIGNAL_STRENGTH:
-        tp = round(price * (1 + config.TAKE_PROFIT_PCT / 100), 2)
-        sl = round(price * (1 - config.STOP_LOSS_PCT / 100), 2)
+        tp = _round_price(price * (1 + config.TAKE_PROFIT_PCT / 100))
+        sl = _round_price(price * (1 - config.STOP_LOSS_PCT / 100))
 
         return Signal(
             coin=coin,
@@ -199,8 +212,8 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
     strength = _calc_sell_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
 
     if strength >= MIN_SIGNAL_STRENGTH:
-        tp = round(price * (1 - config.TAKE_PROFIT_PCT / 100), 2)
-        sl = round(price * (1 + config.STOP_LOSS_PCT / 100), 2)
+        tp = _round_price(price * (1 - config.TAKE_PROFIT_PCT / 100))
+        sl = _round_price(price * (1 + config.STOP_LOSS_PCT / 100))
 
         return Signal(
             coin=coin,
