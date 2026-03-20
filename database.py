@@ -55,6 +55,13 @@ def init_db():
         );
     """)
     conn.commit()
+
+    # Migration: add telegram_message_id if missing (existing DBs won't have it)
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(signals)").fetchall()}
+    if "telegram_message_id" not in existing:
+        conn.execute("ALTER TABLE signals ADD COLUMN telegram_message_id INTEGER")
+        conn.commit()
+
     conn.close()
 
 
