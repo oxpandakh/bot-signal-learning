@@ -139,7 +139,8 @@ def format_signal_alert(sig: Signal) -> str:
         f"📈 MACD  {sig.macd_cross}\n"
         f"📦 Vol   +{vol_pct}% above avg\n"
         f"⏱  15m + 1H confluence\n"
-        f"\n"
+        + (f"🕯 Candles  {'  ·  '.join(sig.candle_patterns)}\n" if sig.candle_patterns else "")
+        + f"\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⚠️ Not financial advice"
     )

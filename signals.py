@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import config
@@ -36,115 +36,98 @@ class Signal:
     volume_ratio: float
     ema_position: str
     strength: float  # Signal strength percentage
+    candle_patterns: list = field(default_factory=list)
     signal_time: str = ""  # UTC datetime string set after DB insert
 
 
-def _calc_buy_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
-                       ema_position: str, volume_ratio: float) -> float:
-    """Calculate BUY signal strength from 0-100%.
+_BULLISH_PATTERNS = {"Hammer", "Bullish Engulfing", "Morning Star", "Piercing Line"}
+_BEARISH_PATTERNS = {"Shooting Star", "Bearish Engulfing", "Evening Star", "Dark Cloud Cover"}
 
-    Scoring (total 100):
-      RSI 15m (20pts): <30 = 20, <35 = 15, <40 = 10, <45 = 5
-      RSI 1H  (20pts): <30 = 20, <35 = 15, <40 = 10, <45 = 5
+
+def _calc_buy_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
+                       ema_position: str, volume_ratio: float,
+                       candle_patterns: list = None) -> float:
+    """Calculate BUY signal strength 0-100%.
+
+    Scoring (base 100):
+      RSI 15m (20pts): <30=20, <35=15, <40=10, <45=5
+      RSI 1H  (20pts): <30=20, <35=15, <40=10, <45=5
       MACD    (25pts): bullish crossover = 25
       EMA     (15pts): above EMA50 = 15
-      Volume  (20pts): >2.0x = 20, >1.5x = 15, >1.2x = 10, >1.0x = 5
+      Volume  (20pts): >2.0x=20, >1.5x=15, >1.2x=10, >1.0x=5
+      Candles (bonus): +5 per bullish pattern, max +10, capped at 100
     """
     score = 0
 
-    # RSI 15m (20pts)
-    if rsi_15m < 30:
-        score += 20
-    elif rsi_15m < 35:
-        score += 15
-    elif rsi_15m < 40:
-        score += 10
-    elif rsi_15m < 45:
-        score += 5
+    if rsi_15m < 30:    score += 20
+    elif rsi_15m < 35:  score += 15
+    elif rsi_15m < 40:  score += 10
+    elif rsi_15m < 45:  score += 5
 
-    # RSI 1H (20pts)
-    if rsi_1h < 30:
-        score += 20
-    elif rsi_1h < 35:
-        score += 15
-    elif rsi_1h < 40:
-        score += 10
-    elif rsi_1h < 45:
-        score += 5
+    if rsi_1h < 30:    score += 20
+    elif rsi_1h < 35:  score += 15
+    elif rsi_1h < 40:  score += 10
+    elif rsi_1h < 45:  score += 5
 
-    # MACD (25pts)
     if macd_cross == "bullish":
         score += 25
 
-    # EMA position (15pts)
     if ema_position == "above_ema50":
         score += 15
 
-    # Volume (20pts)
-    if volume_ratio > 2.0:
-        score += 20
-    elif volume_ratio > 1.5:
-        score += 15
-    elif volume_ratio > 1.2:
-        score += 10
-    elif volume_ratio > 1.0:
-        score += 5
+    if volume_ratio > 2.0:    score += 20
+    elif volume_ratio > 1.5:  score += 15
+    elif volume_ratio > 1.2:  score += 10
+    elif volume_ratio > 1.0:  score += 5
 
-    return score
+    if candle_patterns:
+        bonus = sum(5 for p in candle_patterns if p in _BULLISH_PATTERNS)
+        score += min(bonus, 10)
+
+    return min(score, 100)
 
 
 def _calc_sell_strength(rsi_15m: float, rsi_1h: float, macd_cross: str,
-                        ema_position: str, volume_ratio: float) -> float:
-    """Calculate SELL signal strength from 0-100%.
+                        ema_position: str, volume_ratio: float,
+                        candle_patterns: list = None) -> float:
+    """Calculate SELL signal strength 0-100%.
 
-    Scoring (total 100):
-      RSI 15m (20pts): >75 = 20, >70 = 15, >65 = 10, >60 = 5
-      RSI 1H  (20pts): >75 = 20, >70 = 15, >65 = 10, >60 = 5
+    Scoring (base 100):
+      RSI 15m (20pts): >75=20, >70=15, >65=10, >60=5
+      RSI 1H  (20pts): >75=20, >70=15, >65=10, >60=5
       MACD    (25pts): bearish crossover = 25
       EMA     (15pts): below EMA50 = 15
-      Volume  (20pts): >2.0x = 20, >1.5x = 15, >1.2x = 10, >1.0x = 5
+      Volume  (20pts): >2.0x=20, >1.5x=15, >1.2x=10, >1.0x=5
+      Candles (bonus): +5 per bearish pattern, max +10, capped at 100
     """
     score = 0
 
-    # RSI 15m (20pts)
-    if rsi_15m > 75:
-        score += 20
-    elif rsi_15m > 70:
-        score += 15
-    elif rsi_15m > 65:
-        score += 10
-    elif rsi_15m > 60:
-        score += 5
+    if rsi_15m > 75:    score += 20
+    elif rsi_15m > 70:  score += 15
+    elif rsi_15m > 65:  score += 10
+    elif rsi_15m > 60:  score += 5
 
-    # RSI 1H (20pts)
-    if rsi_1h > 75:
-        score += 20
-    elif rsi_1h > 70:
-        score += 15
-    elif rsi_1h > 65:
-        score += 10
-    elif rsi_1h > 60:
-        score += 5
+    if rsi_1h > 75:    score += 20
+    elif rsi_1h > 70:  score += 15
+    elif rsi_1h > 65:  score += 10
+    elif rsi_1h > 60:  score += 5
 
-    # MACD (25pts)
     if macd_cross == "bearish":
         score += 25
 
-    # EMA position (15pts)
     if ema_position == "below_ema50":
         score += 15
 
-    # Volume (20pts)
-    if volume_ratio > 2.0:
-        score += 20
-    elif volume_ratio > 1.5:
-        score += 15
-    elif volume_ratio > 1.2:
-        score += 10
-    elif volume_ratio > 1.0:
-        score += 5
+    if volume_ratio > 2.0:    score += 20
+    elif volume_ratio > 1.5:  score += 15
+    elif volume_ratio > 1.2:  score += 10
+    elif volume_ratio > 1.0:  score += 5
 
-    return score
+    if candle_patterns:
+        bonus = sum(5 for p in candle_patterns if p in _BEARISH_PATTERNS)
+        score += min(bonus, 10)
+
+    return min(score, 100)
 
 
 def _strength_label(strength: float) -> str:
@@ -163,7 +146,7 @@ def _strength_label(strength: float) -> str:
 
 
 def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
-    """Check if BUY signal strength >= 60%."""
+    """Check if BUY signal strength >= MIN_SIGNAL_STRENGTH."""
     rsi_15m = ind_15m.get("rsi")
     rsi_1h = ind_1h.get("rsi")
     macd_cross = ind_1h.get("macd_cross")
@@ -174,12 +157,16 @@ def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    strength = _calc_buy_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
+    # Combine patterns from both timeframes, deduplicated
+    patterns_15m = ind_15m.get("candle_patterns") or []
+    patterns_1h  = ind_1h.get("candle_patterns") or []
+    all_patterns = list(dict.fromkeys(patterns_15m + patterns_1h))
+
+    strength = _calc_buy_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, all_patterns)
 
     if strength >= MIN_SIGNAL_STRENGTH:
         tp = _round_price(price * (1 + config.TAKE_PROFIT_PCT / 100))
         sl = _round_price(price * (1 - config.STOP_LOSS_PCT / 100))
-
         return Signal(
             coin=coin,
             signal_type="STRONG_BUY",
@@ -192,13 +179,14 @@ def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]
             volume_ratio=volume_ratio,
             ema_position=ema_position,
             strength=strength,
+            candle_patterns=all_patterns,
         )
 
     return None
 
 
 def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
-    """Check if SELL signal strength >= 60%."""
+    """Check if SELL signal strength >= MIN_SIGNAL_STRENGTH."""
     rsi_15m = ind_15m.get("rsi")
     rsi_1h = ind_1h.get("rsi")
     macd_cross = ind_1h.get("macd_cross")
@@ -209,12 +197,15 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    strength = _calc_sell_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio)
+    patterns_15m = ind_15m.get("candle_patterns") or []
+    patterns_1h  = ind_1h.get("candle_patterns") or []
+    all_patterns = list(dict.fromkeys(patterns_15m + patterns_1h))
+
+    strength = _calc_sell_strength(rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, all_patterns)
 
     if strength >= MIN_SIGNAL_STRENGTH:
         tp = _round_price(price * (1 - config.TAKE_PROFIT_PCT / 100))
         sl = _round_price(price * (1 + config.STOP_LOSS_PCT / 100))
-
         return Signal(
             coin=coin,
             signal_type="STRONG_SELL",
@@ -227,6 +218,7 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal
             volume_ratio=volume_ratio,
             ema_position=ema_position,
             strength=strength,
+            candle_patterns=all_patterns,
         )
 
     return None
@@ -251,8 +243,11 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         ema = ind_1h.get("ema_position", "unknown")
         vol = ind_1h.get("volume_ratio") or 0
 
-        buy_str = _calc_buy_strength(rsi_15m, rsi_1h, macd, ema, vol)
-        sell_str = _calc_sell_strength(rsi_15m, rsi_1h, macd, ema, vol)
+        patterns = list(dict.fromkeys(
+            (ind_15m.get("candle_patterns") or []) + (ind_1h.get("candle_patterns") or [])
+        ))
+        buy_str = _calc_buy_strength(rsi_15m, rsi_1h, macd, ema, vol, patterns)
+        sell_str = _calc_sell_strength(rsi_15m, rsi_1h, macd, ema, vol, patterns)
 
         logger.info("🔍 %s — BUY: %d%% | SELL: %d%% | RSI(15m:%.1f/1H:%.1f) MACD:%s EMA:%s Vol:%.2fx",
                      coin, buy_str, sell_str, rsi_15m, rsi_1h, macd, ema, vol)
