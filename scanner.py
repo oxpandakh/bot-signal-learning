@@ -55,7 +55,7 @@ def scan_all_coins() -> dict:
     for i, coin in enumerate(config.COINS, 1):
         logger.info("📡 [%d/%d] Fetching %s ...", i, total, coin)
         results[coin] = {}
-        for tf in config.TIMEFRAMES:
+        for tf in config.TREND_TIMEFRAMES:
             df = fetch_klines(coin, tf)
             if not df.empty:
                 results[coin][tf] = df

@@ -38,6 +38,37 @@ class Signal:
     strength: float  # Signal strength percentage
     candle_patterns: list = field(default_factory=list)
     signal_time: str = ""  # UTC datetime string set after DB insert
+    trend_score: int = 0
+    trend_detail: dict = field(default_factory=dict)
+
+
+_TREND_TFS = ["15m", "1h", "4h", "1d"]
+
+
+def _compute_trend_score(coin_analysis: dict, is_buy: bool) -> tuple[int, dict]:
+    """Count how many TFs align with the signal direction.
+    BUY aligned:  RSI < 50 AND price > EMA50
+    SELL aligned: RSI > 50 AND price < EMA50
+    Returns (aligned_count, {tf: True/False/None})  — None means no data.
+    """
+    detail = {}
+    score = 0
+    for tf in _TREND_TFS:
+        ind = coin_analysis.get(tf)
+        if not ind:
+            detail[tf] = None
+            continue
+        rsi = ind.get("rsi")
+        price = ind.get("price")
+        ema50 = ind.get("ema50")
+        if rsi is None or price is None or ema50 is None:
+            detail[tf] = None
+            continue
+        aligned = (rsi < 50 and price > ema50) if is_buy else (rsi > 50 and price < ema50)
+        detail[tf] = aligned
+        if aligned:
+            score += 1
+    return score, detail
 
 
 _BULLISH_PATTERNS = {"Hammer", "Bullish Engulfing", "Morning Star", "Piercing Line"}
@@ -255,6 +286,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         # Check STRONG BUY
         buy = check_strong_buy(coin, ind_15m, ind_1h)
         if buy:
+            buy.trend_score, buy.trend_detail = _compute_trend_score(timeframes, is_buy=True)
             if database.has_pending_signal(coin, "STRONG_BUY"):
                 logger.info("Skipping duplicate STRONG_BUY for %s (still pending)", coin)
             else:
@@ -276,6 +308,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         # Check STRONG SELL
         sell = check_strong_sell(coin, ind_15m, ind_1h)
         if sell:
+            sell.trend_score, sell.trend_detail = _compute_trend_score(timeframes, is_buy=False)
             if database.has_pending_signal(coin, "STRONG_SELL"):
                 logger.info("Skipping duplicate STRONG_SELL for %s (still pending)", coin)
             else:

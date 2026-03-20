@@ -113,6 +113,18 @@ def _signal_title(signal_type: str, strength: float) -> tuple[str, str]:
         return ("⚠️", f"WEAK {direction}")
 
 
+def _format_trend_score(sig: Signal) -> str:
+    if not sig.trend_detail:
+        return ""
+    parts = []
+    for tf in ["15m", "1h", "4h", "1d"]:
+        v = sig.trend_detail.get(tf)
+        icon = "🟢" if v is True else "🔴" if v is False else "⚫"
+        parts.append(f"{icon}{tf}")
+    total = sum(1 for v in sig.trend_detail.values() if v is not None)
+    return f"📡 TF Align  {sig.trend_score}/{total}   {'  '.join(parts)}\n"
+
+
 def format_signal_alert(sig: Signal) -> str:
     emoji, label = _signal_title(sig.signal_type, sig.strength)
     tp_pct = config.TAKE_PROFIT_PCT
@@ -136,7 +148,8 @@ def format_signal_alert(sig: Signal) -> str:
         f"🛑 Stop    {format_price(sig.stop_loss)}   {sl_arrow} {sl_pct}%\n"
         f"\n"
         f"📊 RSI   15m {sig.rsi_15m:.1f}  ·  1H {sig.rsi_1h:.1f}\n"
-        f"📈 MACD  {sig.macd_cross}\n"
+        + _format_trend_score(sig)
+        + f"📈 MACD  {sig.macd_cross}\n"
         f"📦 Vol   +{vol_pct}% above avg\n"
         f"⏱  15m + 1H confluence\n"
         + (f"🕯 Candles  {'  ·  '.join(sig.candle_patterns)}\n" if sig.candle_patterns else "")

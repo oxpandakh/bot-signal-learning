@@ -20,6 +20,7 @@ BINANCE_BASE_URL = os.getenv("BINANCE_BASE_URL", "https://api.binance.com")
 BINANCE_KLINES_URL = f"{BINANCE_BASE_URL}/api/v3/klines"
 BINANCE_PRICE_URL = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
 TIMEFRAMES = ["15m", "1h"]
+TREND_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 CANDLE_LIMIT = 250
 
 RSI_PERIOD = 14
