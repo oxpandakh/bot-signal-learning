@@ -138,7 +138,7 @@ def format_signal_alert(sig: Signal) -> str:
     sl_arrow = "↓" if is_buy else "↑"
 
     return (
-        f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{emoji} {label} — {sig.coin}\n"
         f"\n"
         f"📶  {strength:.0f}%  {s_bar}  {s_label}\n"
         f"\n"
