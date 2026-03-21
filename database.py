@@ -77,7 +77,7 @@ def insert_signal(coin: str, signal_type: str, entry_price: float,
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (coin, signal_type, entry_price, take_profit, stop_loss,
          rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position,
-         datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+         datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
     )
     signal_id = cursor.lastrowid
     conn.commit()
@@ -120,7 +120,7 @@ def resolve_signal(signal_id: int, outcome: str, exit_price: float,
     conn.execute(
         """UPDATE signals SET outcome=?, outcome_time=?, exit_price=?,
            pnl_pct=?, duration_minutes=? WHERE id=?""",
-        (outcome, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        (outcome, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
          exit_price, pnl_pct, duration_minutes, signal_id)
     )
     conn.commit()
@@ -205,17 +205,11 @@ def get_signal_stats() -> list:
     return [dict(r) for r in rows]
 
 
-def get_signals_for_cambodia_date(date_str: str) -> list:
-    """Query signals for a Cambodia (UTC+7) date. signal_time is stored in UTC."""
-    cambodia_tz = timezone(timedelta(hours=7))
-    d = datetime.strptime(date_str, "%Y-%m-%d")
-    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=cambodia_tz)
-    end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=cambodia_tz)
-    start_utc = start.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    end_utc = end.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+def get_yesterday_signals() -> list:
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM signals WHERE signal_time BETWEEN ? AND ?", (start_utc, end_utc)
+        "SELECT * FROM signals WHERE date(signal_time)=?", (yesterday,)
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -223,7 +217,7 @@ def get_signals_for_cambodia_date(date_str: str) -> list:
 
 def get_today_signals() -> list:
     conn = get_connection()
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     rows = conn.execute(
         "SELECT * FROM signals WHERE date(signal_time)=?", (today,)
     ).fetchall()
