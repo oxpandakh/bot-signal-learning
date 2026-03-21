@@ -229,7 +229,8 @@ def format_outcome(sig: dict) -> str:
 
 
 def format_daily_summary() -> str:
-    today_sigs = database.get_today_signals()
+    yesterday_cambodia = (datetime.now(TZ_CAMBODIA) - timedelta(days=1)).date()
+    today_sigs = database.get_signals_for_cambodia_date(yesterday_cambodia.strftime("%Y-%m-%d"))
     total = len(today_sigs)
     wins = sum(1 for s in today_sigs if s["outcome"] == "WIN")
     losses = sum(1 for s in today_sigs if s["outcome"] == "LOSS")
@@ -238,7 +239,7 @@ def format_daily_summary() -> str:
 
     win_pct = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
 
-    today_str = datetime.now(TZ_CAMBODIA).strftime("%d %b %Y")
+    today_str = yesterday_cambodia.strftime("%d %b %Y")
 
     # By signal type
     buy_wins = sum(1 for s in today_sigs if s["signal_type"] == "STRONG_BUY" and s["outcome"] == "WIN")

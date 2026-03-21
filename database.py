@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import config
@@ -201,6 +201,22 @@ def get_coin_stats() -> list:
 def get_signal_stats() -> list:
     conn = get_connection()
     rows = conn.execute("SELECT * FROM signal_stats").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_signals_for_cambodia_date(date_str: str) -> list:
+    """Query signals for a Cambodia (UTC+7) date. signal_time is stored in UTC."""
+    cambodia_tz = timezone(timedelta(hours=7))
+    d = datetime.strptime(date_str, "%Y-%m-%d")
+    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=cambodia_tz)
+    end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=cambodia_tz)
+    start_utc = start.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    end_utc = end.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM signals WHERE signal_time BETWEEN ? AND ?", (start_utc, end_utc)
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
