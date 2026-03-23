@@ -280,10 +280,6 @@ def format_daily_summary() -> str:
             worst_rate = r
             worst_coin = c
 
-    # Best/worst signal type
-    best_sig = "STRONG BUY" if buy_rate >= sell_rate else "STRONG SELL"
-    worst_sig = "STRONG SELL" if buy_rate >= sell_rate else "STRONG BUY"
-
     alltime = database.get_alltime_win_rate()
 
     msg = (
@@ -299,11 +295,14 @@ def format_daily_summary() -> str:
 
     msg += (
         f"\n📈 BY SIGNAL TYPE:\n"
-        f"  🟢 STRONG BUY   → {buy_wins}W / {buy_losses}L  →  {buy_rate:.1f}%\n"
-        f"  🔴 STRONG SELL  → {sell_wins}W / {sell_losses}L  →  {sell_rate:.1f}%\n"
+        f"  🟢 BUY   → {buy_wins}W / {buy_losses}L  →  {buy_rate:.1f}%\n"
+        f"  🔴 SELL  → {sell_wins}W / {sell_losses}L  →  {sell_rate:.1f}%\n"
         f"\n🪙 BY COIN:\n"
         f"{coin_lines}"
     )
+
+    best_sig = "BUY" if buy_rate >= sell_rate else "SELL"
+    worst_sig = "SELL" if buy_rate >= sell_rate else "BUY"
 
     if best_coin:
         msg += f"\n🏆 Best Signal  : {best_sig} on {best_coin} ({best_rate:.0f}%)\n"
