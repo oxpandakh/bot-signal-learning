@@ -293,10 +293,42 @@ def format_daily_summary() -> str:
     if expired:
         msg += f"⏳ Expired    : {expired}\n"
 
+    # By strength label
+    def _slabel(s):
+        if s >= 90: return "🔥 EXTREME"
+        elif s >= 80: return "💪 VERY STRONG"
+        elif s >= 70: return "✅ STRONG"
+        elif s >= 60: return "⚡ MODERATE"
+        elif s >= 50: return "📊 FAIR"
+        else: return "⚠️ WEAK"
+
+    strength_map = {}
+    for s in today_sigs:
+        if s["outcome"] in ("WIN", "LOSS"):
+            lbl = _slabel(s.get("strength") or 0)
+            if lbl not in strength_map:
+                strength_map[lbl] = {"wins": 0, "losses": 0}
+            if s["outcome"] == "WIN":
+                strength_map[lbl]["wins"] += 1
+            else:
+                strength_map[lbl]["losses"] += 1
+
+    strength_order = ["🔥 EXTREME", "💪 VERY STRONG", "✅ STRONG", "⚡ MODERATE", "📊 FAIR", "⚠️ WEAK"]
+    strength_lines = ""
+    for lbl in strength_order:
+        if lbl in strength_map:
+            w, l = strength_map[lbl]["wins"], strength_map[lbl]["losses"]
+            r = (w / (w + l) * 100) if (w + l) > 0 else 0
+            strength_lines += f"  {lbl}   {w}W / {l}L  →  {r:.1f}%\n"
+
     msg += (
         f"\n📈 BY SIGNAL TYPE:\n"
         f"  🟢 BUY   → {buy_wins}W / {buy_losses}L  →  {buy_rate:.1f}%\n"
         f"  🔴 SELL  → {sell_wins}W / {sell_losses}L  →  {sell_rate:.1f}%\n"
+    )
+    if strength_lines:
+        msg += f"\n💪 BY STRENGTH:\n{strength_lines}"
+    msg += (
         f"\n🪙 BY COIN:\n"
         f"{coin_lines}"
     )

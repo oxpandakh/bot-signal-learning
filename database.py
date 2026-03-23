@@ -56,10 +56,13 @@ def init_db():
     """)
     conn.commit()
 
-    # Migration: add telegram_message_id if missing (existing DBs won't have it)
+    # Migrations: add columns missing from older DBs
     existing = {row[1] for row in conn.execute("PRAGMA table_info(signals)").fetchall()}
     if "telegram_message_id" not in existing:
         conn.execute("ALTER TABLE signals ADD COLUMN telegram_message_id INTEGER")
+        conn.commit()
+    if "strength" not in existing:
+        conn.execute("ALTER TABLE signals ADD COLUMN strength REAL DEFAULT 0.0")
         conn.commit()
 
     conn.close()
@@ -68,16 +71,16 @@ def init_db():
 def insert_signal(coin: str, signal_type: str, entry_price: float,
                   take_profit: float, stop_loss: float, rsi_15m: float,
                   rsi_1h: float, macd_cross: str, volume_ratio: float,
-                  ema_position: str) -> int:
+                  ema_position: str, strength: float = 0.0) -> int:
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO signals
            (coin, signal_type, entry_price, take_profit, stop_loss,
-            rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position, signal_time)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position, signal_time, strength)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (coin, signal_type, entry_price, take_profit, stop_loss,
          rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position,
-         datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+         datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), strength)
     )
     signal_id = cursor.lastrowid
     conn.commit()

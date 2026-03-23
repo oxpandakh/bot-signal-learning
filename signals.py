@@ -296,6 +296,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     stop_loss=buy.stop_loss, rsi_15m=buy.rsi_15m,
                     rsi_1h=buy.rsi_1h, macd_cross=buy.macd_cross,
                     volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
+                    strength=buy.strength,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:
@@ -318,6 +319,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     stop_loss=sell.stop_loss, rsi_15m=sell.rsi_15m,
                     rsi_1h=sell.rsi_1h, macd_cross=sell.macd_cross,
                     volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
+                    strength=sell.strength,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:
