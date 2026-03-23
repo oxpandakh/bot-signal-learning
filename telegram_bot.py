@@ -161,7 +161,8 @@ def format_signal_alert(sig: Signal) -> str:
 def format_outcome(sig: dict) -> str:
     outcome = sig["outcome"]
     coin = sig["coin"]
-    signal_type = sig["signal_type"].replace("_", " ")
+    direction = "BUY" if "BUY" in sig["signal_type"] else "SELL"
+    signal_type = f"{_strength_label(sig.get('strength') or 0).split()[-1]} {direction}"
     entry = format_price(sig["entry_price"])
     exit_p = format_price(sig["exit_price"])
     pnl = sig["pnl_pct"]
