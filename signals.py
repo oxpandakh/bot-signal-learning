@@ -40,6 +40,9 @@ class Signal:
     signal_time: str = ""  # UTC datetime string set after DB insert
     trend_score: int = 0
     trend_detail: dict = field(default_factory=dict)
+    avg_1d:  float = None
+    avg_7d:  float = None
+    avg_30d: float = None
 
 
 _TREND_TFS = ["15m", "1h", "4h", "1d"]
@@ -283,10 +286,16 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         logger.info("🔍 %s — BUY: %d%% | SELL: %d%% | RSI(15m:%.1f/1H:%.1f) MACD:%s EMA:%s Vol:%.2fx",
                      coin, buy_str, sell_str, rsi_15m, rsi_1h, macd, ema, vol)
 
+        ind_1d = timeframes.get("1d")
+
         # Check STRONG BUY
         buy = check_strong_buy(coin, ind_15m, ind_1h)
         if buy:
             buy.trend_score, buy.trend_detail = _compute_trend_score(timeframes, is_buy=True)
+            if ind_1d:
+                buy.avg_1d  = ind_1d.get("avg_1d")
+                buy.avg_7d  = ind_1d.get("avg_7d")
+                buy.avg_30d = ind_1d.get("avg_30d")
             if database.has_pending_signal(coin, "STRONG_BUY"):
                 logger.info("Skipping duplicate STRONG_BUY for %s (still pending)", coin)
             else:
@@ -297,6 +306,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     rsi_1h=buy.rsi_1h, macd_cross=buy.macd_cross,
                     volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
                     strength=buy.strength,
+                    avg_1d=buy.avg_1d, avg_7d=buy.avg_7d, avg_30d=buy.avg_30d,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:
@@ -310,6 +320,10 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         sell = check_strong_sell(coin, ind_15m, ind_1h)
         if sell:
             sell.trend_score, sell.trend_detail = _compute_trend_score(timeframes, is_buy=False)
+            if ind_1d:
+                sell.avg_1d  = ind_1d.get("avg_1d")
+                sell.avg_7d  = ind_1d.get("avg_7d")
+                sell.avg_30d = ind_1d.get("avg_30d")
             if database.has_pending_signal(coin, "STRONG_SELL"):
                 logger.info("Skipping duplicate STRONG_SELL for %s (still pending)", coin)
             else:
@@ -320,6 +334,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     rsi_1h=sell.rsi_1h, macd_cross=sell.macd_cross,
                     volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
                     strength=sell.strength,
+                    avg_1d=sell.avg_1d, avg_7d=sell.avg_7d, avg_30d=sell.avg_30d,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:

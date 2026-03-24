@@ -125,6 +125,17 @@ def _format_trend_score(sig: Signal) -> str:
     return f"📡 TF Align  {sig.trend_score}/{total}   {'  '.join(parts)}\n"
 
 
+def _format_avg_prices(sig: Signal) -> str:
+    if sig.avg_1d is None:
+        return ""
+    parts = [f"1d {format_price(sig.avg_1d)}"]
+    if sig.avg_7d is not None:
+        parts.append(f"7d {format_price(sig.avg_7d)}")
+    if sig.avg_30d is not None:
+        parts.append(f"30d {format_price(sig.avg_30d)}")
+    return f"📉 Avg Price  {'  ·  '.join(parts)}\n"
+
+
 def format_signal_alert(sig: Signal) -> str:
     emoji, label = _signal_title(sig.signal_type, sig.strength)
     tp_pct = config.TAKE_PROFIT_PCT
@@ -152,6 +163,7 @@ def format_signal_alert(sig: Signal) -> str:
         f"📦 Vol   +{vol_pct}% above avg\n"
         f"⏱  15m + 1H confluence\n"
         + (f"🕯 Candles  {'  ·  '.join(sig.candle_patterns)}\n" if sig.candle_patterns else "")
+        + _format_avg_prices(sig)
         + f"\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⚠️ Not financial advice"

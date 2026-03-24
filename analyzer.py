@@ -182,6 +182,17 @@ def compute_indicators(df: pd.DataFrame) -> dict:
         "candle_patterns": detect_candlestick_patterns(df),
     }
 
+    # Average typical price ((H+L+C)/3) over last 1, 7, 30 candles
+    typical = (df["high"] + df["low"] + df["close"]) / 3
+    def _avg(n):
+        if len(typical) < n:
+            return None
+        return float(typical.iloc[-n:].mean())
+
+    result["avg_1d"]  = _avg(1)
+    result["avg_7d"]  = _avg(7)
+    result["avg_30d"] = _avg(30)
+
     return result
 
 
