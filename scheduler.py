@@ -29,7 +29,8 @@ async def scan_and_signal():
         fired = signals.generate_signals(analysis)
 
         for sig, signal_id in fired:
-            await telegram_bot.send_signal_alert(sig, signal_id)
+            if sig.strength >= 50:  # Only send FAIR and above to Telegram
+                await telegram_bot.send_signal_alert(sig, signal_id)
 
         logger.info("Scan cycle complete — %d signal(s) fired", len(fired))
 
