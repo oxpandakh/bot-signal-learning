@@ -29,8 +29,7 @@ async def scan_and_signal():
         fired = signals.generate_signals(analysis)
 
         for sig, signal_id in fired:
-            if sig.strength >= 50:  # Only send FAIR and above to Telegram
-                await telegram_bot.send_signal_alert(sig, signal_id)
+            await telegram_bot.send_signal_alert(sig, signal_id)
 
         logger.info("Scan cycle complete — %d signal(s) fired", len(fired))
 
@@ -45,8 +44,7 @@ async def check_and_resolve():
         resolved = await asyncio.to_thread(tracker.check_outcomes)
 
         for sig in resolved:
-            if (sig.get("strength") or 0) >= 50:  # Only send outcomes for FAIR and above
-                await telegram_bot.send_outcome(sig)
+            await telegram_bot.send_outcome(sig)
 
         logger.info("Outcome check complete — %d signal(s) resolved", len(resolved))
 

@@ -7,7 +7,7 @@ import database
 
 logger = logging.getLogger(__name__)
 
-MIN_SIGNAL_STRENGTH = 40  # Minimum % to fire a signal
+MIN_SIGNAL_STRENGTH = 50  # Minimum % to fire a signal (FAIR and above)
 
 
 def _round_price(price: float) -> float:
