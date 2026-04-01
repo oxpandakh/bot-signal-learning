@@ -45,7 +45,8 @@ async def check_and_resolve():
         resolved = await asyncio.to_thread(tracker.check_outcomes)
 
         for sig in resolved:
-            await telegram_bot.send_outcome(sig)
+            if (sig.get("strength") or 0) >= 50:  # Only send outcomes for FAIR and above
+                await telegram_bot.send_outcome(sig)
 
         logger.info("Outcome check complete — %d signal(s) resolved", len(resolved))
 
