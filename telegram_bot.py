@@ -96,6 +96,13 @@ def _strength_bar(strength: float) -> str:
     return "█" * filled + "░" * (10 - filled)
 
 
+def _style_label(trading_style: str) -> str:
+    """Return formatted trading style label."""
+    if trading_style == "Swing":
+        return "🌊 Swing Trade"
+    return "⚡ Scalp Trade"
+
+
 def _signal_title(signal_type: str, strength: float) -> tuple[str, str]:
     """Return (emoji, label) based on signal type and strength."""
     direction = "BUY" if "BUY" in signal_type else "SELL"
@@ -148,9 +155,12 @@ def format_signal_alert(sig: Signal) -> str:
     tp_arrow = "↑" if is_buy else "↓"
     sl_arrow = "↓" if is_buy else "↑"
 
+    style = _style_label(sig.trading_style)
+
     return (
         f"{emoji} {label} — {sig.coin}\n"
         f"\n"
+        f"🏷  {style}\n"
         f"📶  {strength:.0f}%  {s_bar}  {s_label}\n"
         f"\n"
         f"💰 Entry   {format_price(sig.entry_price)}\n"
@@ -175,6 +185,7 @@ def format_outcome(sig: dict) -> str:
     coin = sig["coin"]
     direction = "BUY" if "BUY" in sig["signal_type"] else "SELL"
     signal_type = f"{_strength_label(sig.get('strength') or 0).split()[-1]} {direction}"
+    style = _style_label(sig.get("trading_style") or "")
     entry = format_price(sig["entry_price"])
     exit_p = format_price(sig["exit_price"])
     pnl = sig["pnl_pct"]
@@ -201,7 +212,7 @@ def format_outcome(sig: dict) -> str:
             f"✅ WIN — {coin}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"\n"
-            f"📣 {signal_type}\n"
+            f"📣 {signal_type}  ·  {style}\n"
             f"💰 Entry   {entry}  →  📍 {exit_p}\n"
             f"🎯 Target  {format_price(sig['take_profit'])}\n"
             f"\n"
@@ -215,7 +226,7 @@ def format_outcome(sig: dict) -> str:
             f"❌ LOSS — {coin}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"\n"
-            f"📣 {signal_type}\n"
+            f"📣 {signal_type}  ·  {style}\n"
             f"💰 Entry   {entry}  →  📍 {exit_p}\n"
             f"🛑 Stop    {format_price(sig['stop_loss'])}\n"
             f"\n"
@@ -226,14 +237,15 @@ def format_outcome(sig: dict) -> str:
         )
     else:  # EXPIRED
         return (
-            f"⏳ EXPIRED — {coin}\n"
+            f"⏳ SIGNAL RESOLVED — EXPIRED — {coin}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"\n"
-            f"📣 {signal_type}\n"
+            f"📣 {signal_type}  ·  {style}\n"
             f"💰 Entry      {entry}\n"
             f"📍 At expiry  {exit_p}\n"
             f"\n"
             f"💵 Unrealized  {pnl_str}   ·   ⏳ {config.OUTCOME_CHECK_HOURS}h timeout\n"
+            f"ℹ️ No TP/SL hit within the timeout window\n"
             f"\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ Not financial advice"
@@ -494,9 +506,10 @@ async def cmd_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for s in pending:
         signal_time = datetime.strptime(s["signal_time"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         elapsed = int((datetime.now(timezone.utc) - signal_time).total_seconds() / 60)
+        style = _style_label(s.get("trading_style") or "")
         msg += (
             f"{'🟢' if s['signal_type'] == 'STRONG_BUY' else '🔴'} {s['coin']} — "
-            f"{s['signal_type'].replace('_', ' ')}\n"
+            f"{s['signal_type'].replace('_', ' ')}  ·  {style}\n"
             f"   Entry: {format_price(s['entry_price'])} | "
             f"TP: {format_price(s['take_profit'])} | "
             f"SL: {format_price(s['stop_loss'])}\n"
@@ -520,8 +533,9 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = f"📜 LAST {len(history)} RESOLVED SIGNALS\n━━━━━━━━━━━━━━━━━━━━\n\n"
     for s in history:
         icon = "✅" if s["outcome"] == "WIN" else ("❌" if s["outcome"] == "LOSS" else "⏳")
+        style = _style_label(s.get("trading_style") or "")
         msg += (
-            f"{icon} {s['coin']} — {s['signal_type'].replace('_', ' ')} — {s['outcome']}\n"
+            f"{icon} {s['coin']} — {s['signal_type'].replace('_', ' ')} — {s['outcome']}  ·  {style}\n"
             f"   Entry: {format_price(s['entry_price'])} → Exit: {format_price(s['exit_price'])}\n"
             f"   P&L: {'+' if s['pnl_pct'] >= 0 else ''}{s['pnl_pct']}% | "
             f"Duration: {format_duration(s['duration_minutes'])}\n"

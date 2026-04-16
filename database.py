@@ -73,6 +73,9 @@ def init_db():
     if "avg_30d" not in existing:
         conn.execute("ALTER TABLE signals ADD COLUMN avg_30d REAL")
         conn.commit()
+    if "trading_style" not in existing:
+        conn.execute("ALTER TABLE signals ADD COLUMN trading_style TEXT DEFAULT ''")
+        conn.commit()
 
     conn.close()
 
@@ -82,18 +85,18 @@ def insert_signal(coin: str, signal_type: str, entry_price: float,
                   rsi_1h: float, macd_cross: str, volume_ratio: float,
                   ema_position: str, strength: float = 0.0,
                   avg_1d: float = None, avg_7d: float = None,
-                  avg_30d: float = None) -> int:
+                  avg_30d: float = None, trading_style: str = "") -> int:
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO signals
            (coin, signal_type, entry_price, take_profit, stop_loss,
             rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position,
-            signal_time, strength, avg_1d, avg_7d, avg_30d)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            signal_time, strength, avg_1d, avg_7d, avg_30d, trading_style)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (coin, signal_type, entry_price, take_profit, stop_loss,
          rsi_15m, rsi_1h, macd_cross, volume_ratio, ema_position,
          datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-         strength, avg_1d, avg_7d, avg_30d)
+         strength, avg_1d, avg_7d, avg_30d, trading_style)
     )
     signal_id = cursor.lastrowid
     conn.commit()

@@ -43,6 +43,7 @@ class Signal:
     avg_1d:  float = None
     avg_7d:  float = None
     avg_30d: float = None
+    trading_style: str = ""  # "Swing" or "Scalp"
 
 
 _TREND_TFS = ["15m", "1h", "4h", "1d"]
@@ -179,6 +180,22 @@ def _strength_label(strength: float) -> str:
         return "⚠️ WEAK"
 
 
+def _trading_style(trend_score: int, trend_detail: dict) -> str:
+    """Classify signal as Swing or Scalp based on multi-timeframe alignment.
+
+    Swing  — higher timeframes (4h or 1d) confirm the direction AND ≥2 TFs aligned.
+             These are trend-following setups suited for multi-hour/day holds.
+    Scalp  — momentum driven mostly by the short-term TFs (15m/1h). Quick in-and-out.
+    """
+    tf_4h_aligned = trend_detail.get("4h") is True
+    tf_1d_aligned = trend_detail.get("1d") is True
+    higher_tf_confirmed = tf_4h_aligned or tf_1d_aligned
+
+    if trend_score >= 2 and higher_tf_confirmed:
+        return "Swing"
+    return "Scalp"
+
+
 def check_strong_buy(coin: str, ind_15m: dict, ind_1h: dict) -> Optional[Signal]:
     """Check if BUY signal strength >= MIN_SIGNAL_STRENGTH."""
     rsi_15m = ind_15m.get("rsi")
@@ -292,6 +309,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         buy = check_strong_buy(coin, ind_15m, ind_1h)
         if buy:
             buy.trend_score, buy.trend_detail = _compute_trend_score(timeframes, is_buy=True)
+            buy.trading_style = _trading_style(buy.trend_score, buy.trend_detail)
             if ind_1d:
                 buy.avg_1d  = ind_1d.get("avg_1d")
                 buy.avg_7d  = ind_1d.get("avg_7d")
@@ -307,6 +325,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
                     strength=buy.strength,
                     avg_1d=buy.avg_1d, avg_7d=buy.avg_7d, avg_30d=buy.avg_30d,
+                    trading_style=buy.trading_style,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:
@@ -320,6 +339,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         sell = check_strong_sell(coin, ind_15m, ind_1h)
         if sell:
             sell.trend_score, sell.trend_detail = _compute_trend_score(timeframes, is_buy=False)
+            sell.trading_style = _trading_style(sell.trend_score, sell.trend_detail)
             if ind_1d:
                 sell.avg_1d  = ind_1d.get("avg_1d")
                 sell.avg_7d  = ind_1d.get("avg_7d")
@@ -335,6 +355,7 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
                     volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
                     strength=sell.strength,
                     avg_1d=sell.avg_1d, avg_7d=sell.avg_7d, avg_30d=sell.avg_30d,
+                    trading_style=sell.trading_style,
                 )
                 sig_row = database.get_signal_by_id(signal_id)
                 if sig_row:
