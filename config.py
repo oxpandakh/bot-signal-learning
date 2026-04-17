@@ -35,5 +35,8 @@ RSI_OVERSOLD = 35
 RSI_OVERBOUGHT = 70
 VOLUME_THRESHOLD = 1.5
 
+# Minimum signal strength (%) to fire an alert. Higher = fewer but higher-confidence signals.
+MIN_SIGNAL_STRENGTH = int(os.getenv("MIN_SIGNAL_STRENGTH", "60"))
+
 RAILWAY_VOLUME = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "")
 DB_PATH = os.path.join(RAILWAY_VOLUME, "signals.db") if RAILWAY_VOLUME else "signals.db"
