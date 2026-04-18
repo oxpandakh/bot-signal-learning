@@ -1,13 +1,15 @@
 # Crypto Trading Signal Bot
 
-A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generates **STRONG BUY / STRONG SELL** signals with a **strength percentage** (40%–100%), tracks outcomes, and delivers everything via Telegram.
+A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generates high-confidence **STRONG BUY / STRONG SELL** signals with a **strength percentage** (0%–100%), tracks outcomes, and delivers everything via Telegram.
 
 ## Features
 
-- Multi-timeframe analysis (15m + 1H confluence)
-- Signal strength scoring (40%–100%) with visual bar
+- Multi-timeframe analysis across **15m, 1H, 4H and 1D** (weighted confluence)
+- 9-component signal strength scoring (0%–100%) with visual bar
+- Hard gates: MACD direction required + counter-trend veto vs higher timeframes
+- Uses RSI, MACD, EMA 20/50/200 stack, Volume, **Stochastic RSI**, **Bollinger Bands**, and candlestick patterns
 - Win rate tracking with auto-resolution (TP/SL/Expiry)
-- Telegram alerts with detailed indicator data
+- Telegram alerts with detailed indicator data and per-component breakdown in logs
 - Daily performance reports
 - Railway deployment ready (SQLite + Volume persistence)
 
@@ -22,15 +24,27 @@ A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generat
 
 ## Signal Strength Scoring
 
-Signals are scored from 0–100% based on how strongly each condition is met. Only signals with **>= 40% strength** are sent.
+Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 60% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
 
 | Component | Max Points | How Scored |
 |-----------|-----------|------------|
-| RSI 15m | 20 pts | Graded: deeper oversold/overbought = more points |
-| RSI 1H | 20 pts | Same grading |
-| MACD | 25 pts | Crossover confirmed = 25, else 0 |
-| EMA 50 | 15 pts | Price on correct side = 15, else 0 |
-| Volume | 20 pts | Graded: higher volume = more points |
+| RSI 15m | 15 pts | Graded: <25 = 15, <30 = 12, <35 = 9, <40 = 5, <45 = 2 (mirrored for SELL) |
+| RSI 1H | 15 pts | Same grading as 15m |
+| MACD (1H) | 15 pts | Fresh crossover in signal direction = 15, else signal is rejected |
+| EMA alignment (1H) | 10 pts | Full 20>50>200 stack = 10, partial stack = 7, price side only = 4 |
+| Volume (1H) | 10 pts | ≥3.0x = 10, ≥2.0x = 8, ≥1.5x = 5, ≥1.2x = 2 |
+| Multi-TF alignment | 15 pts | Weighted by timeframe — 1d = 6, 4h = 4, 1h = 3, 15m = 2 |
+| Stochastic RSI (1H) | 10 pts | Oversold/overbought + K/D crossover in direction |
+| Bollinger Bands (1H) | 5 pts | Price at/near the appropriate band (mean-reversion edge) |
+| Higher-TF RSI | 5 pts | 4h/1d RSI not extreme against the signal direction |
+| Candle patterns | +10 bonus | +5 per matching pattern (Hammer, Engulfing, Morning/Evening Star, etc.) |
+
+### Hard Gates (signal is rejected, regardless of score)
+
+1. **MACD direction required** — BUY requires a bullish MACD crossover on 1H; SELL requires bearish.
+2. **Counter-trend veto** — BUYs are skipped when the 4h AND 1d RSI are both > 78 (chasing a top), or when 1d price is > 12% below the 1d EMA200 (strong downtrend). SELLs apply the symmetric checks.
+
+### Strength Labels
 
 | Strength | Label |
 |----------|-------|
@@ -38,8 +52,8 @@ Signals are scored from 0–100% based on how strongly each condition is met. On
 | 80–89% | 💪 VERY STRONG |
 | 70–79% | ✅ STRONG |
 | 60–69% | ⚡ MODERATE |
-| 50–59% | 📊 FAIR |
-| 40–49% | ⚠️ WEAK |
+| 50–59% | 📊 FAIR (below default threshold) |
+| < 50% | ⚠️ WEAK (below default threshold) |
 
 ## Supported Coins (36 pairs)
 
@@ -96,6 +110,7 @@ TAKE_PROFIT_PCT=3.0           # Take profit percentage
 STOP_LOSS_PCT=1.5             # Stop loss percentage
 OUTCOME_CHECK_HOURS=4         # Hours before signal expires
 SCAN_INTERVAL_MINUTES=15      # Scan frequency
+MIN_SIGNAL_STRENGTH=60        # Minimum % to fire a signal (0-100)
 BINANCE_BASE_URL=https://api.binance.com  # Change if region-blocked
 COINS=BTCUSDT,ETHUSDT,...     # Comma-separated coin list
 ```
@@ -209,7 +224,7 @@ The bot doesn't need a web port — it only polls Telegram:
 | `Conflict: terminated by other getUpdates` | Stop your local bot — only one instance can run per token |
 | Database resets on deploy | Add a Volume (Step 5) |
 | Bot not starting | Check "Deployments" tab for error logs |
-| No signals firing | Normal — signals only fire when strength >= 40% |
+| No signals firing | Normal — signals only fire when strength >= 60% and MACD + higher-TF gates pass. Lower `MIN_SIGNAL_STRENGTH` if you want more alerts. |
 
 ## Telegram Commands
 
