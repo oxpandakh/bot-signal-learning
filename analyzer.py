@@ -144,8 +144,10 @@ def compute_indicators(df: pd.DataFrame) -> dict:
         val = series.iloc[idx]
         return None if pd.isna(val) else float(val)
 
-    # MACD crossover detection
+    # MACD crossover detection (fresh cross on the last closed bar)
     macd_cross = "none"
+    macd_state = "neutral"  # ongoing side regardless of a fresh cross
+    macd_hist = None
     if macd_line is not None and macd_signal is not None and len(macd_line) >= 2:
         macd_now = safe_val(macd_line)
         signal_now = safe_val(macd_signal)
@@ -158,6 +160,12 @@ def compute_indicators(df: pd.DataFrame) -> dict:
             elif macd_prev >= signal_prev and macd_now < signal_now:
                 macd_cross = "bearish"
 
+            if macd_now > signal_now:
+                macd_state = "bullish"
+            elif macd_now < signal_now:
+                macd_state = "bearish"
+            macd_hist = macd_now - signal_now
+
     # EMA position
     price = safe_val(close)
     ema50_val = safe_val(ema50)
@@ -168,6 +176,8 @@ def compute_indicators(df: pd.DataFrame) -> dict:
     result = {
         "rsi": safe_val(rsi),
         "macd_cross": macd_cross,
+        "macd_state": macd_state,
+        "macd_hist": macd_hist,
         "ema20": safe_val(ema20),
         "ema50": safe_val(ema50),
         "ema200": safe_val(ema200),
