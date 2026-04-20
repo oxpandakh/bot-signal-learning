@@ -193,12 +193,14 @@ def _bb_points(ind: dict, is_buy: bool) -> int:
 def _macd_points(ind: dict, is_buy: bool) -> int:
     """Graded MACD score. Max 15 pts.
     Fresh crossover in our direction = 15.
-    No opposite crossover in the last bar, but still = 0 (only rewards active bias).
+    Ongoing same-side momentum (macd_line vs signal_line) = 8.
+    Opposite side = 0.
     """
-    cross = ind.get("macd_cross")
     target = "bullish" if is_buy else "bearish"
-    if cross == target:
+    if ind.get("macd_cross") == target:
         return 15
+    if ind.get("macd_state") == target:
+        return 8
     return 0
 
 
@@ -387,10 +389,12 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    # Require the right MACD direction as a hard gate — avoids firing on
-    # pure oversold/overbought readings with no momentum confirmation.
-    required_cross = "bullish" if is_buy else "bearish"
-    if macd_cross != required_cross:
+    # Hard gate: MACD line must not be on the opposing side. A fresh cross is
+    # not required — ongoing same-side momentum (or a flat/neutral state) is
+    # enough. This blocks signals that fight active momentum.
+    required_state = "bullish" if is_buy else "bearish"
+    macd_state = ind_1h.get("macd_state", "neutral")
+    if macd_state not in (required_state, "neutral"):
         return None
 
     # Combine patterns from both timeframes, deduplicated.
@@ -414,11 +418,21 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
     if is_buy:
         tp = _round_price(price * (1 + config.TAKE_PROFIT_PCT / 100))
         sl = _round_price(price * (1 - config.STOP_LOSS_PCT / 100))
-        macd_label = "Bullish crossover"
+        if macd_cross == "bullish":
+            macd_label = "Bullish crossover"
+        elif macd_state == "bullish":
+            macd_label = "Bullish momentum"
+        else:
+            macd_label = "Neutral"
     else:
         tp = _round_price(price * (1 - config.TAKE_PROFIT_PCT / 100))
         sl = _round_price(price * (1 + config.STOP_LOSS_PCT / 100))
-        macd_label = "Bearish crossover"
+        if macd_cross == "bearish":
+            macd_label = "Bearish crossover"
+        elif macd_state == "bearish":
+            macd_label = "Bearish momentum"
+        else:
+            macd_label = "Neutral"
 
     logger.info(
         "📐 %s %s breakdown → %s → %d%%",

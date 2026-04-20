@@ -24,13 +24,13 @@ A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generat
 
 ## Signal Strength Scoring
 
-Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 60% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
+Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 55% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
 
 | Component | Max Points | How Scored |
 |-----------|-----------|------------|
 | RSI 15m | 15 pts | Graded: <25 = 15, <30 = 12, <35 = 9, <40 = 5, <45 = 2 (mirrored for SELL) |
 | RSI 1H | 15 pts | Same grading as 15m |
-| MACD (1H) | 15 pts | Fresh crossover in signal direction = 15, else signal is rejected |
+| MACD (1H) | 15 pts | Fresh crossover = 15, ongoing same-side momentum = 8. Opposing momentum rejects the signal. |
 | EMA alignment (1H) | 10 pts | Full 20>50>200 stack = 10, partial stack = 7, price side only = 4 |
 | Volume (1H) | 10 pts | ≥3.0x = 10, ≥2.0x = 8, ≥1.5x = 5, ≥1.2x = 2 |
 | Multi-TF alignment | 15 pts | Weighted by timeframe — 1d = 6, 4h = 4, 1h = 3, 15m = 2 |
@@ -41,7 +41,7 @@ Signals are scored from 0–100% across **9 weighted components** plus candle-pa
 
 ### Hard Gates (signal is rejected, regardless of score)
 
-1. **MACD direction required** — BUY requires a bullish MACD crossover on 1H; SELL requires bearish.
+1. **MACD must not oppose** — the 1H MACD line must be on the signal side (or neutral). A fresh crossover is not required; ongoing same-side momentum is enough.
 2. **Counter-trend veto** — BUYs are skipped when the 4h AND 1d RSI are both > 78 (chasing a top), or when 1d price is > 12% below the 1d EMA200 (strong downtrend). SELLs apply the symmetric checks.
 
 ### Strength Labels
@@ -110,7 +110,7 @@ TAKE_PROFIT_PCT=3.0           # Take profit percentage
 STOP_LOSS_PCT=1.5             # Stop loss percentage
 OUTCOME_CHECK_HOURS=4         # Hours before signal expires
 SCAN_INTERVAL_MINUTES=15      # Scan frequency
-MIN_SIGNAL_STRENGTH=60        # Minimum % to fire a signal (0-100)
+MIN_SIGNAL_STRENGTH=55        # Minimum % to fire a signal (0-100)
 BINANCE_BASE_URL=https://api.binance.com  # Change if region-blocked
 COINS=BTCUSDT,ETHUSDT,...     # Comma-separated coin list
 ```
