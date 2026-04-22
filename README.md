@@ -24,7 +24,7 @@ A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generat
 
 ## Signal Strength Scoring
 
-Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 55% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
+Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 45% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
 
 | Component | Max Points | How Scored |
 |-----------|-----------|------------|
@@ -52,8 +52,11 @@ Signals are scored from 0–100% across **9 weighted components** plus candle-pa
 | 80–89% | 💪 VERY STRONG |
 | 70–79% | ✅ STRONG |
 | 60–69% | ⚡ MODERATE |
-| 50–59% | 📊 FAIR (below default threshold) |
-| < 50% | ⚠️ WEAK (below default threshold) |
+| 50–59% | 📊 FAIR |
+| 45–49% | ⚠️ WEAK (still fires at default threshold) |
+| < 45% | rejected (below default threshold) |
+
+**Daily volume target.** The default `MIN_SIGNAL_STRENGTH=45` is tuned for roughly **5–10 signals/day** across 36 coins. Raise to 50 for 3–6/day, 55 for 1–3/day. Near-miss scores are logged so you can see how close rejected setups were — useful for tuning.
 
 ## Supported Coins (36 pairs)
 
@@ -110,7 +113,7 @@ TAKE_PROFIT_PCT=3.0           # Take profit percentage
 STOP_LOSS_PCT=1.5             # Stop loss percentage
 OUTCOME_CHECK_HOURS=4         # Hours before signal expires
 SCAN_INTERVAL_MINUTES=15      # Scan frequency
-MIN_SIGNAL_STRENGTH=55        # Minimum % to fire a signal (0-100)
+MIN_SIGNAL_STRENGTH=45        # Minimum % to fire a signal (tune for target daily volume: 45≈5-10/day, 50≈3-6/day, 55≈1-3/day)
 BINANCE_BASE_URL=https://api.binance.com  # Change if region-blocked
 COINS=BTCUSDT,ETHUSDT,...     # Comma-separated coin list
 ```

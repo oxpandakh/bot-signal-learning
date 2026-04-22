@@ -413,6 +413,12 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
     )
 
     if strength < MIN_SIGNAL_STRENGTH:
+        # Near-miss logging helps tuning — shows which coins just missed the cut.
+        if strength >= MIN_SIGNAL_STRENGTH - 10:
+            logger.info(
+                "➖ %s %s near-miss %d%% (need %d%%) → %s",
+                coin, signal_type, int(strength), MIN_SIGNAL_STRENGTH, breakdown,
+            )
         return None
 
     if is_buy:
