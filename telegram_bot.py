@@ -98,6 +98,8 @@ def _strength_bar(strength: float) -> str:
 
 def _style_label(trading_style: str) -> str:
     """Return formatted trading style label."""
+    if trading_style == "Daily Swing":
+        return "Daily Swing Trade"
     if trading_style == "Swing":
         return "🌊 Swing Trade"
     return "⚡ Scalp Trade"
@@ -174,11 +176,11 @@ def format_signal_alert(sig: Signal) -> str:
         f"🎯 Target  {format_price(sig.take_profit)}   {tp_arrow} {tp_pct}%\n"
         f"🛑 Stop    {format_price(sig.stop_loss)}   {sl_arrow} {sl_pct}%\n"
         f"\n"
-        f"📊 RSI   15m {sig.rsi_15m:.1f}  ·  1H {sig.rsi_1h:.1f}\n"
+        f"📊 RSI   {sig.rsi_fast_label} {sig.rsi_15m:.1f}  ·  {sig.rsi_slow_label} {sig.rsi_1h:.1f}\n"
         + _format_trend_score(sig)
         + f"📈 MACD  {sig.macd_cross}\n"
         f"📦 Vol   +{vol_pct}% above avg\n"
-        f"⏱  15m + 1H confluence\n"
+        f"⏱  {sig.timeframe_label} confluence\n"
         + (f"🕯 Candles  {'  ·  '.join(sig.candle_patterns)}\n" if sig.candle_patterns else "")
         + (f"R:R   {sig.risk_reward:.2f}:1\n" if getattr(sig, "risk_reward", 0) else "")
         + _format_signal_reasons(sig)
@@ -552,3 +554,4 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     msg += "⚠️ Not financial advice"
     await update.message.reply_text(msg)
+

@@ -39,6 +39,9 @@ class Signal:
     strength_breakdown: dict = field(default_factory=dict)
     signal_reasons: list = field(default_factory=list)
     risk_reward: float = 0.0
+    timeframe_label: str = "15m + 1H"
+    rsi_fast_label: str = "15m"
+    rsi_slow_label: str = "1H"
     candle_patterns: list = field(default_factory=list)
     signal_time: str = ""  # UTC datetime string set after DB insert
     trend_score: int = 0
@@ -428,7 +431,9 @@ def _trading_style(trend_score: int, trend_detail: dict) -> str:
 
 
 def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
-                  all_timeframes: dict) -> Optional[Signal]:
+                  all_timeframes: dict, min_strength: int = MIN_SIGNAL_STRENGTH,
+                  fast_label: str = "15m", slow_label: str = "1H",
+                  timeframe_label: str = "15m + 1H") -> Optional[Signal]:
     """Compute strength, apply veto, and build a Signal if it passes."""
     is_buy = signal_type == "STRONG_BUY"
 
@@ -465,12 +470,12 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
         ind_15m, ind_1h, all_timeframes, all_patterns, is_buy
     )
 
-    if strength < MIN_SIGNAL_STRENGTH:
+    if strength < min_strength:
         # Near-miss logging helps tuning — shows which coins just missed the cut.
-        if strength >= MIN_SIGNAL_STRENGTH - 10:
+        if strength >= min_strength - 10:
             logger.info(
                 "➖ %s %s near-miss %d%% (need %d%%) → %s",
-                coin, signal_type, int(strength), MIN_SIGNAL_STRENGTH, breakdown,
+                coin, signal_type, int(strength), min_strength, breakdown,
             )
         return None
 
@@ -521,6 +526,9 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
         signal_reasons=_score_reasons(breakdown, is_buy),
         risk_reward=round(config.TAKE_PROFIT_PCT / config.STOP_LOSS_PCT, 2)
         if config.STOP_LOSS_PCT else 0.0,
+        timeframe_label=timeframe_label,
+        rsi_fast_label=fast_label,
+        rsi_slow_label=slow_label,
         candle_patterns=all_patterns,
     )
 
@@ -537,10 +545,33 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict,
     return _build_signal(coin, "STRONG_SELL", ind_15m, ind_1h, all_timeframes or {})
 
 
+def check_daily_buy(coin: str, ind_4h: dict, ind_1d: dict,
+                    all_timeframes: dict = None) -> Optional[Signal]:
+    """Check if the 4H + 1D setup is strong enough for a daily swing signal."""
+    return _build_signal(
+        coin, "STRONG_BUY", ind_4h, ind_1d, all_timeframes or {},
+        min_strength=config.DAILY_SIGNAL_STRENGTH,
+        fast_label="4H", slow_label="1D", timeframe_label="4H + 1D daily setup",
+    )
+
+
+def check_daily_sell(coin: str, ind_4h: dict, ind_1d: dict,
+                     all_timeframes: dict = None) -> Optional[Signal]:
+    """Check if the 4H + 1D setup is strong enough for a daily swing signal."""
+    return _build_signal(
+        coin, "STRONG_SELL", ind_4h, ind_1d, all_timeframes or {},
+        min_strength=config.DAILY_SIGNAL_STRENGTH,
+        fast_label="4H", slow_label="1D", timeframe_label="4H + 1D daily setup",
+    )
+
+
 def _prepare_signal_metadata(sig: Signal, timeframes: dict):
     is_buy = sig.signal_type == "STRONG_BUY"
     sig.trend_score, sig.trend_detail = _compute_trend_score(timeframes, is_buy=is_buy)
-    sig.trading_style = _trading_style(sig.trend_score, sig.trend_detail)
+    if "daily" in sig.timeframe_label.lower():
+        sig.trading_style = "Daily Swing"
+    else:
+        sig.trading_style = _trading_style(sig.trend_score, sig.trend_detail)
 
     ind_1d = timeframes.get("1d")
     if ind_1d:
@@ -550,7 +581,7 @@ def _prepare_signal_metadata(sig: Signal, timeframes: dict):
 
 
 def _insert_signal(sig: Signal) -> Optional[int]:
-    if database.has_pending_signal(sig.coin, sig.signal_type):
+    if database.has_pending_signal(sig.coin, sig.signal_type, sig.trading_style):
         logger.info("Skipping duplicate %s for %s (still pending)", sig.signal_type, sig.coin)
         return None
 
@@ -576,6 +607,22 @@ def _insert_signal(sig: Signal) -> Optional[int]:
     return signal_id
 
 
+def _fire_best_candidate(coin: str, candidates: list[Signal], timeframes: dict,
+                         fired: list[tuple[Signal, int]]):
+    candidates.sort(key=lambda sig: sig.strength, reverse=True)
+    selected = candidates[0]
+    if len(candidates) > 1:
+        logger.info(
+            "%s had multiple candidates; selected %s %s at %d%%",
+            coin, selected.signal_type, selected.timeframe_label, int(selected.strength),
+        )
+
+    _prepare_signal_metadata(selected, timeframes)
+    signal_id = _insert_signal(selected)
+    if signal_id:
+        fired.append((selected, signal_id))
+
+
 def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
     """Generate signals for all coins. Returns list of (Signal, signal_id) tuples."""
     fired = []
@@ -583,8 +630,32 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
     for coin, timeframes in analysis.items():
         ind_15m = timeframes.get("15m")
         ind_1h = timeframes.get("1h")
+        ind_4h = timeframes.get("4h")
+        ind_1d = timeframes.get("1d")
+        candidates = []
+
+        if ind_4h and ind_1d:
+            patterns = list(dict.fromkeys(
+                (ind_4h.get("candle_patterns") or []) + (ind_1d.get("candle_patterns") or [])
+            ))
+            daily_buy_str, _ = _calc_strength(ind_4h, ind_1d, timeframes, patterns, is_buy=True)
+            daily_sell_str, _ = _calc_strength(ind_4h, ind_1d, timeframes, patterns, is_buy=False)
+            logger.info(
+                "%s daily BUY:%d%% SELL:%d%% threshold:%d%%",
+                coin, daily_buy_str, daily_sell_str, config.DAILY_SIGNAL_STRENGTH,
+            )
+            candidates.extend(sig for sig in (
+                check_daily_buy(coin, ind_4h, ind_1d, timeframes),
+                check_daily_sell(coin, ind_4h, ind_1d, timeframes),
+            )
+                              if sig)
+        else:
+            logger.info("%s missing 4H/1D data, daily signal skipped", coin)
 
         if not ind_15m or not ind_1h:
+            if candidates:
+                _fire_best_candidate(coin, candidates, timeframes, fired)
+                continue
             logger.info("⏭️ %s — missing timeframe data, skipping", coin)
             continue
 
@@ -603,13 +674,13 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         logger.info("🔍 %s — BUY: %d%% | SELL: %d%% | RSI(15m:%.1f/1H:%.1f) MACD:%s EMA:%s Vol:%.2fx",
                      coin, buy_str, sell_str, rsi_15m, rsi_1h, macd, ema, vol)
 
-        candidates = [
+        candidates.extend([
             sig for sig in (
                 check_strong_buy(coin, ind_15m, ind_1h, timeframes),
                 check_strong_sell(coin, ind_15m, ind_1h, timeframes),
             )
             if sig
-        ]
+        ])
         if not candidates:
             continue
 
