@@ -36,6 +36,9 @@ class Signal:
     volume_ratio: float
     ema_position: str
     strength: float  # Signal strength percentage
+    strength_breakdown: dict = field(default_factory=dict)
+    signal_reasons: list = field(default_factory=list)
+    risk_reward: float = 0.0
     candle_patterns: list = field(default_factory=list)
     signal_time: str = ""  # UTC datetime string set after DB insert
     trend_score: int = 0
@@ -343,6 +346,56 @@ def _calc_strength(ind_15m: dict, ind_1h: dict, all_timeframes: dict,
     return total, breakdown
 
 
+def _score_reasons(breakdown: dict, is_buy: bool) -> list[str]:
+    """Return the strongest human-readable reasons behind a passing score."""
+    labels = {
+        "macd": "MACD confirms direction",
+        "multi_tf": f"{breakdown.get('mtf_aligned', '0/0')} timeframes aligned",
+        "rsi_15m": "15m RSI is stretched",
+        "rsi_1h": "1H RSI is stretched",
+        "ema": "EMA trend stack agrees",
+        "volume": "Volume expansion",
+        "stoch_rsi": "Stoch RSI confirms reversal",
+        "bollinger": "Price is near Bollinger edge",
+        "higher_tf": "Higher timeframe RSI allows trade",
+        "candles": "Reversal candle pattern",
+    }
+    max_points = {
+        "rsi_15m": 15,
+        "rsi_1h": 15,
+        "macd": 15,
+        "ema": 10,
+        "volume": 10,
+        "multi_tf": 15,
+        "stoch_rsi": 10,
+        "bollinger": 5,
+        "higher_tf": 5,
+        "candles": 10,
+    }
+    ranked = []
+    for key, max_pt in max_points.items():
+        pts = breakdown.get(key, 0)
+        if not pts:
+            continue
+        ranked.append((pts / max_pt, pts, labels[key]))
+
+    direction = "BUY" if is_buy else "SELL"
+    ranked.sort(reverse=True)
+    return [f"{label} ({pts} pts)" for _, pts, label in ranked[:4]] or [f"{direction} score passed threshold"]
+
+
+def _has_directional_edge(breakdown: dict) -> bool:
+    """Require at least one real trigger, not just passive supporting points."""
+    trigger_points = (
+        breakdown.get("macd", 0)
+        + breakdown.get("stoch_rsi", 0)
+        + breakdown.get("bollinger", 0)
+        + breakdown.get("candles", 0)
+    )
+    rsi_points = breakdown.get("rsi_15m", 0) + breakdown.get("rsi_1h", 0)
+    return trigger_points >= 8 or rsi_points >= 18
+
+
 def _strength_label(strength: float) -> str:
     if strength >= 90:
         return "🔥 EXTREME"
@@ -421,6 +474,13 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
             )
         return None
 
+    if not _has_directional_edge(breakdown):
+        logger.info(
+            "%s %s rejected: score %d%% has no clear directional trigger (%s)",
+            coin, signal_type, int(strength), breakdown,
+        )
+        return None
+
     if is_buy:
         tp = _round_price(price * (1 + config.TAKE_PROFIT_PCT / 100))
         sl = _round_price(price * (1 - config.STOP_LOSS_PCT / 100))
@@ -457,6 +517,10 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
         volume_ratio=volume_ratio,
         ema_position=ema_position,
         strength=strength,
+        strength_breakdown=breakdown,
+        signal_reasons=_score_reasons(breakdown, is_buy),
+        risk_reward=round(config.TAKE_PROFIT_PCT / config.STOP_LOSS_PCT, 2)
+        if config.STOP_LOSS_PCT else 0.0,
         candle_patterns=all_patterns,
     )
 
@@ -471,6 +535,45 @@ def check_strong_sell(coin: str, ind_15m: dict, ind_1h: dict,
                       all_timeframes: dict = None) -> Optional[Signal]:
     """Check if SELL signal strength >= MIN_SIGNAL_STRENGTH."""
     return _build_signal(coin, "STRONG_SELL", ind_15m, ind_1h, all_timeframes or {})
+
+
+def _prepare_signal_metadata(sig: Signal, timeframes: dict):
+    is_buy = sig.signal_type == "STRONG_BUY"
+    sig.trend_score, sig.trend_detail = _compute_trend_score(timeframes, is_buy=is_buy)
+    sig.trading_style = _trading_style(sig.trend_score, sig.trend_detail)
+
+    ind_1d = timeframes.get("1d")
+    if ind_1d:
+        sig.avg_1d = ind_1d.get("avg_1d")
+        sig.avg_7d = ind_1d.get("avg_7d")
+        sig.avg_30d = ind_1d.get("avg_30d")
+
+
+def _insert_signal(sig: Signal) -> Optional[int]:
+    if database.has_pending_signal(sig.coin, sig.signal_type):
+        logger.info("Skipping duplicate %s for %s (still pending)", sig.signal_type, sig.coin)
+        return None
+
+    signal_id = database.insert_signal(
+        coin=sig.coin, signal_type=sig.signal_type,
+        entry_price=sig.entry_price, take_profit=sig.take_profit,
+        stop_loss=sig.stop_loss, rsi_15m=sig.rsi_15m,
+        rsi_1h=sig.rsi_1h, macd_cross=sig.macd_cross,
+        volume_ratio=sig.volume_ratio, ema_position=sig.ema_position,
+        strength=sig.strength,
+        avg_1d=sig.avg_1d, avg_7d=sig.avg_7d, avg_30d=sig.avg_30d,
+        trading_style=sig.trading_style,
+    )
+    sig_row = database.get_signal_by_id(signal_id)
+    if sig_row:
+        sig.signal_time = sig_row["signal_time"]
+
+    logger.info(
+        "%s signal #%d for %s at $%.2f [%d%% %s]",
+        sig.signal_type, signal_id, sig.coin, sig.entry_price, sig.strength,
+        _strength_label(sig.strength),
+    )
+    return signal_id
 
 
 def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
@@ -500,66 +603,28 @@ def generate_signals(analysis: dict) -> list[tuple[Signal, int]]:
         logger.info("🔍 %s — BUY: %d%% | SELL: %d%% | RSI(15m:%.1f/1H:%.1f) MACD:%s EMA:%s Vol:%.2fx",
                      coin, buy_str, sell_str, rsi_15m, rsi_1h, macd, ema, vol)
 
-        ind_1d = timeframes.get("1d")
+        candidates = [
+            sig for sig in (
+                check_strong_buy(coin, ind_15m, ind_1h, timeframes),
+                check_strong_sell(coin, ind_15m, ind_1h, timeframes),
+            )
+            if sig
+        ]
+        if not candidates:
+            continue
 
-        # Check STRONG BUY
-        buy = check_strong_buy(coin, ind_15m, ind_1h, timeframes)
-        if buy:
-            buy.trend_score, buy.trend_detail = _compute_trend_score(timeframes, is_buy=True)
-            buy.trading_style = _trading_style(buy.trend_score, buy.trend_detail)
-            if ind_1d:
-                buy.avg_1d  = ind_1d.get("avg_1d")
-                buy.avg_7d  = ind_1d.get("avg_7d")
-                buy.avg_30d = ind_1d.get("avg_30d")
-            if database.has_pending_signal(coin, "STRONG_BUY"):
-                logger.info("Skipping duplicate STRONG_BUY for %s (still pending)", coin)
-            else:
-                signal_id = database.insert_signal(
-                    coin=buy.coin, signal_type=buy.signal_type,
-                    entry_price=buy.entry_price, take_profit=buy.take_profit,
-                    stop_loss=buy.stop_loss, rsi_15m=buy.rsi_15m,
-                    rsi_1h=buy.rsi_1h, macd_cross=buy.macd_cross,
-                    volume_ratio=buy.volume_ratio, ema_position=buy.ema_position,
-                    strength=buy.strength,
-                    avg_1d=buy.avg_1d, avg_7d=buy.avg_7d, avg_30d=buy.avg_30d,
-                    trading_style=buy.trading_style,
-                )
-                sig_row = database.get_signal_by_id(signal_id)
-                if sig_row:
-                    buy.signal_time = sig_row["signal_time"]
-                logger.info("🚀 STRONG BUY signal #%d for %s at $%.2f [%d%% %s]",
-                            signal_id, coin, buy.entry_price, buy.strength,
-                            _strength_label(buy.strength))
-                fired.append((buy, signal_id))
+        candidates.sort(key=lambda sig: sig.strength, reverse=True)
+        selected = candidates[0]
+        if len(candidates) > 1:
+            logger.info(
+                "%s had both BUY and SELL candidates; selected %s at %d%% over %s at %d%%",
+                coin, selected.signal_type, int(selected.strength),
+                candidates[1].signal_type, int(candidates[1].strength),
+            )
 
-        # Check STRONG SELL
-        sell = check_strong_sell(coin, ind_15m, ind_1h, timeframes)
-        if sell:
-            sell.trend_score, sell.trend_detail = _compute_trend_score(timeframes, is_buy=False)
-            sell.trading_style = _trading_style(sell.trend_score, sell.trend_detail)
-            if ind_1d:
-                sell.avg_1d  = ind_1d.get("avg_1d")
-                sell.avg_7d  = ind_1d.get("avg_7d")
-                sell.avg_30d = ind_1d.get("avg_30d")
-            if database.has_pending_signal(coin, "STRONG_SELL"):
-                logger.info("Skipping duplicate STRONG_SELL for %s (still pending)", coin)
-            else:
-                signal_id = database.insert_signal(
-                    coin=sell.coin, signal_type=sell.signal_type,
-                    entry_price=sell.entry_price, take_profit=sell.take_profit,
-                    stop_loss=sell.stop_loss, rsi_15m=sell.rsi_15m,
-                    rsi_1h=sell.rsi_1h, macd_cross=sell.macd_cross,
-                    volume_ratio=sell.volume_ratio, ema_position=sell.ema_position,
-                    strength=sell.strength,
-                    avg_1d=sell.avg_1d, avg_7d=sell.avg_7d, avg_30d=sell.avg_30d,
-                    trading_style=sell.trading_style,
-                )
-                sig_row = database.get_signal_by_id(signal_id)
-                if sig_row:
-                    sell.signal_time = sig_row["signal_time"]
-                logger.info("🔴 STRONG SELL signal #%d for %s at $%.2f [%d%% %s]",
-                            signal_id, coin, sell.entry_price, sell.strength,
-                            _strength_label(sell.strength))
-                fired.append((sell, signal_id))
+        _prepare_signal_metadata(selected, timeframes)
+        signal_id = _insert_signal(selected)
+        if signal_id:
+            fired.append((selected, signal_id))
 
     return fired

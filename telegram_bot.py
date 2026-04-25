@@ -143,6 +143,13 @@ def _format_avg_prices(sig: Signal) -> str:
     return f"📉 Avg Price  {'  ·  '.join(parts)}\n"
 
 
+def _format_signal_reasons(sig: Signal) -> str:
+    if not getattr(sig, "signal_reasons", None):
+        return ""
+    lines = "\n".join(f"   - {reason}" for reason in sig.signal_reasons[:4])
+    return f"Why it fired\n{lines}\n"
+
+
 def format_signal_alert(sig: Signal) -> str:
     emoji, label = _signal_title(sig.signal_type, sig.strength)
     tp_pct = config.TAKE_PROFIT_PCT
@@ -173,6 +180,8 @@ def format_signal_alert(sig: Signal) -> str:
         f"📦 Vol   +{vol_pct}% above avg\n"
         f"⏱  15m + 1H confluence\n"
         + (f"🕯 Candles  {'  ·  '.join(sig.candle_patterns)}\n" if sig.candle_patterns else "")
+        + (f"R:R   {sig.risk_reward:.2f}:1\n" if getattr(sig, "risk_reward", 0) else "")
+        + _format_signal_reasons(sig)
         + _format_avg_prices(sig)
         + f"\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━\n"
