@@ -114,12 +114,19 @@ def set_telegram_message_id(signal_id: int, message_id: int):
     conn.close()
 
 
-def has_pending_signal(coin: str, signal_type: str) -> bool:
+def has_pending_signal(coin: str, signal_type: str, trading_style: str = None) -> bool:
     conn = get_connection()
-    row = conn.execute(
-        "SELECT COUNT(*) as cnt FROM signals WHERE coin=? AND signal_type=? AND outcome='PENDING'",
-        (coin, signal_type)
-    ).fetchone()
+    if trading_style:
+        row = conn.execute(
+            """SELECT COUNT(*) as cnt FROM signals
+               WHERE coin=? AND signal_type=? AND trading_style=? AND outcome='PENDING'""",
+            (coin, signal_type, trading_style)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM signals WHERE coin=? AND signal_type=? AND outcome='PENDING'",
+            (coin, signal_type)
+        ).fetchone()
     conn.close()
     return row["cnt"] > 0
 

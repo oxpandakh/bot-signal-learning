@@ -42,6 +42,7 @@ VOLUME_THRESHOLD = 1.5
 #   55 -> 1-3 signals/day
 #   60 -> only highest-conviction setups (often 0/day)
 MIN_SIGNAL_STRENGTH = int(os.getenv("MIN_SIGNAL_STRENGTH", "45"))
+DAILY_SIGNAL_STRENGTH = int(os.getenv("DAILY_SIGNAL_STRENGTH", str(max(MIN_SIGNAL_STRENGTH, 60))))
 
 RAILWAY_VOLUME = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "")
 DB_PATH = os.path.join(RAILWAY_VOLUME, "signals.db") if RAILWAY_VOLUME else "signals.db"
