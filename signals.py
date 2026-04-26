@@ -263,7 +263,8 @@ def _higher_tf_confirmation(all_timeframes: dict, is_buy: bool) -> int:
     return pts
 
 
-def _counter_trend_veto(all_timeframes: dict, is_buy: bool) -> Optional[str]:
+def _counter_trend_veto(all_timeframes: dict, is_buy: bool,
+                        enforce_ema200: bool = True) -> Optional[str]:
     """Veto signals that fight a strong higher-timeframe trend.
     Returns a reason string if vetoed, else None.
     """
@@ -282,13 +283,13 @@ def _counter_trend_veto(all_timeframes: dict, is_buy: bool) -> Optional[str]:
         if rsi_4h is not None and rsi_1d is not None and rsi_4h > 78 and rsi_1d > 78:
             return f"4h RSI {rsi_4h:.1f} & 1d RSI {rsi_1d:.1f} severely overbought"
         # Price far below 1d EMA200 → strong downtrend, don't bottom-fish.
-        if p_1d is not None and ema200_1d is not None and ema200_1d > 0:
+        if enforce_ema200 and p_1d is not None and ema200_1d is not None and ema200_1d > 0:
             if p_1d < ema200_1d * 0.88:  # > 12% below EMA200
                 return f"1d price {p_1d:.4f} is {100*(1-p_1d/ema200_1d):.1f}% below EMA200 (strong downtrend)"
     else:
         if rsi_4h is not None and rsi_1d is not None and rsi_4h < 22 and rsi_1d < 22:
             return f"4h RSI {rsi_4h:.1f} & 1d RSI {rsi_1d:.1f} severely oversold"
-        if p_1d is not None and ema200_1d is not None and ema200_1d > 0:
+        if enforce_ema200 and p_1d is not None and ema200_1d is not None and ema200_1d > 0:
             if p_1d > ema200_1d * 1.12:  # > 12% above EMA200
                 return f"1d price {p_1d:.4f} is {100*(p_1d/ema200_1d-1):.1f}% above EMA200 (strong uptrend)"
     return None
@@ -396,7 +397,8 @@ def _has_directional_edge(breakdown: dict) -> bool:
         + breakdown.get("candles", 0)
     )
     rsi_points = breakdown.get("rsi_15m", 0) + breakdown.get("rsi_1h", 0)
-    return trigger_points >= 8 or rsi_points >= 18
+    volume_points = breakdown.get("volume", 0)
+    return trigger_points >= 8 or rsi_points >= 14 or (rsi_points >= 10 and volume_points >= 8)
 
 
 def _strength_label(strength: float) -> str:
@@ -447,21 +449,19 @@ def _build_signal(coin: str, signal_type: str, ind_15m: dict, ind_1h: dict,
     if any(v is None for v in [rsi_15m, rsi_1h, macd_cross, ema_position, volume_ratio, price]):
         return None
 
-    # Hard gate: MACD line must not be on the opposing side. A fresh cross is
-    # not required — ongoing same-side momentum (or a flat/neutral state) is
-    # enough. This blocks signals that fight active momentum.
-    required_state = "bullish" if is_buy else "bearish"
+    # MACD is scored as confirmation, but it should not block reversal setups
+    # that already have enough RSI/Stoch/Bollinger/candle evidence.
     macd_state = ind_1h.get("macd_state", "neutral")
-    if macd_state not in (required_state, "neutral"):
-        return None
 
     # Combine patterns from both timeframes, deduplicated.
     patterns_15m = ind_15m.get("candle_patterns") or []
     patterns_1h  = ind_1h.get("candle_patterns") or []
     all_patterns = list(dict.fromkeys(patterns_15m + patterns_1h))
 
-    # Counter-trend veto: don't fight a strong higher-TF trend.
-    veto = _counter_trend_veto(all_timeframes, is_buy)
+    # Daily swing setups should not fight the 1D EMA200. Short-term scalp
+    # setups keep only the severe higher-TF RSI safety check.
+    is_daily_setup = "daily" in timeframe_label.lower()
+    veto = _counter_trend_veto(all_timeframes, is_buy, enforce_ema200=is_daily_setup)
     if veto:
         logger.info("🚫 %s %s vetoed — %s", coin, signal_type, veto)
         return None

@@ -24,7 +24,7 @@ A Python bot that scans **36 crypto pairs** on Binance every 15 minutes, generat
 
 ## Signal Strength Scoring
 
-Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 45% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass two hard gates (MACD direction + higher-timeframe veto).
+Signals are scored from 0–100% across **9 weighted components** plus candle-pattern bonuses. Only signals with **>= 40% strength** (configurable via `MIN_SIGNAL_STRENGTH`) are sent, and every signal must pass the higher-timeframe veto.
 
 | Component | Max Points | How Scored |
 |-----------|-----------|------------|
@@ -41,8 +41,8 @@ Signals are scored from 0–100% across **9 weighted components** plus candle-pa
 
 ### Hard Gates (signal is rejected, regardless of score)
 
-1. **MACD must not oppose** — the 1H MACD line must be on the signal side (or neutral). A fresh crossover is not required; ongoing same-side momentum is enough.
-2. **Counter-trend veto** — BUYs are skipped when the 4h AND 1d RSI are both > 78 (chasing a top), or when 1d price is > 12% below the 1d EMA200 (strong downtrend). SELLs apply the symmetric checks.
+1. **Counter-trend veto** — BUYs are skipped when the 4h AND 1d RSI are both > 78 (chasing a top). SELLs apply the symmetric oversold check. Daily swing setups also skip BUYs when 1d price is > 12% below the 1d EMA200, and skip SELLs when 1d price is > 12% above the 1d EMA200.
+2. **Directional edge required** — a setup must have a real trigger from MACD, RSI, Stoch RSI, Bollinger position, volume, or candle patterns. MACD still adds strength when it agrees, but it no longer blocks reversal setups by itself.
 
 ### Strength Labels
 
@@ -53,10 +53,10 @@ Signals are scored from 0–100% across **9 weighted components** plus candle-pa
 | 70–79% | ✅ STRONG |
 | 60–69% | ⚡ MODERATE |
 | 50–59% | 📊 FAIR |
-| 45–49% | ⚠️ WEAK (still fires at default threshold) |
-| < 45% | rejected (below default threshold) |
+| 40–49% | ⚠️ WEAK (still fires at default threshold) |
+| < 40% | rejected (below default threshold) |
 
-**Daily volume target.** The default `MIN_SIGNAL_STRENGTH=45` is tuned for roughly **5–10 signals/day** across 36 coins. Raise to 50 for 3–6/day, 55 for 1–3/day. Near-miss scores are logged so you can see how close rejected setups were — useful for tuning.
+**Daily volume target.** The default `MIN_SIGNAL_STRENGTH=40` is tuned for more active alerts when signals are too rare. Raise to 45 for fewer/stronger setups, 50 for 3–6/day, 55 for 1–3/day. Near-miss scores are logged so you can see how close rejected setups were — useful for tuning.
 
 ## Supported Coins (36 pairs)
 
@@ -113,7 +113,7 @@ TAKE_PROFIT_PCT=3.0           # Take profit percentage
 STOP_LOSS_PCT=1.5             # Stop loss percentage
 OUTCOME_CHECK_HOURS=4         # Hours before signal expires
 SCAN_INTERVAL_MINUTES=15      # Scan frequency
-MIN_SIGNAL_STRENGTH=45        # Minimum % to fire a signal (tune for target daily volume: 45≈5-10/day, 50≈3-6/day, 55≈1-3/day)
+MIN_SIGNAL_STRENGTH=40        # Minimum % to fire a signal (raise to 45/50/55 for fewer, stronger alerts)
 BINANCE_BASE_URL=https://api.binance.com  # Change if region-blocked
 COINS=BTCUSDT,ETHUSDT,...     # Comma-separated coin list
 ```
@@ -227,7 +227,7 @@ The bot doesn't need a web port — it only polls Telegram:
 | `Conflict: terminated by other getUpdates` | Stop your local bot — only one instance can run per token |
 | Database resets on deploy | Add a Volume (Step 5) |
 | Bot not starting | Check "Deployments" tab for error logs |
-| No signals firing | Normal — signals only fire when strength >= 60% and MACD + higher-TF gates pass. Lower `MIN_SIGNAL_STRENGTH` if you want more alerts. |
+| No signals firing | Signals only fire when strength >= `MIN_SIGNAL_STRENGTH` and the higher-TF veto passes. Lower `MIN_SIGNAL_STRENGTH` if you want more alerts. |
 
 ## Telegram Commands
 
