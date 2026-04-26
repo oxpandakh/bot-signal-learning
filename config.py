@@ -37,11 +37,12 @@ VOLUME_THRESHOLD = 1.5
 
 # Minimum signal strength (%) to fire an alert.
 # Lower = more signals, higher = fewer but stronger. Tuning guide:
-#   45 -> roughly 5-10 signals/day across 36 coins (default)
+#   40 -> more active alerts, useful if signals are too rare (default)
+#   45 -> roughly 5-10 signals/day across 36 coins
 #   50 -> 3-6 signals/day
 #   55 -> 1-3 signals/day
 #   60 -> only highest-conviction setups (often 0/day)
-MIN_SIGNAL_STRENGTH = int(os.getenv("MIN_SIGNAL_STRENGTH", "45"))
+MIN_SIGNAL_STRENGTH = int(os.getenv("MIN_SIGNAL_STRENGTH", "40"))
 DAILY_SIGNAL_STRENGTH = int(os.getenv("DAILY_SIGNAL_STRENGTH", str(max(MIN_SIGNAL_STRENGTH, 60))))
 
 RAILWAY_VOLUME = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "")
